@@ -2,7 +2,7 @@ from fastapi import FastAPI, Form, Request
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
 from io import BytesIO
-
+import funciones
 
 app = FastAPI()
 

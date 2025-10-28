@@ -1,10 +1,16 @@
 from google.auth import default
 from google.auth.transport.requests import Request
+from dotenv import load_dotenv
+#from google.auth import scopes
 
+#load_dotenv()
+#DOCUMENT_AI_SCOPE = scopes.CLOUD_PLATFORM
 
-# Obtener credenciales y el token de acceso
-# Esto busca automáticamente las credenciales de tu entorno (ej. cuenta de servicio)
+SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
+
 credentials, _ = default()
+#credentials, _ = default(scopes=[DOCUMENT_AI_SCOPE])
+#credentials, _ = default(scopes=SCOPES)
 credentials.refresh(Request())
 access_token = credentials.token
 
