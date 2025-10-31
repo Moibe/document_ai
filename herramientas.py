@@ -47,7 +47,7 @@ async def upload_a_base64(archivo_subido: UploadFile) -> str:
     return base64_cadena
 
 
-# Asumiendo que 'data_json' es el diccionario Python que recibiste de response.json()
+# Asumiendo que 'data_json' es el diccionario Python que recibí de response.json()
 # Ejemplo: data_json = response.json()
 
 def imprimir_entidades(data_json):

@@ -36,3 +36,12 @@ async def procesa_documento(image: UploadFile = File(...)):
     if not image.content_type.startswith("image/"):
         return {"error": "El archivo no es una imagen"}
     return await funciones.procesa_pasaporte(image)
+
+@app.post(
+        "/procesa_fm/", 
+        tags=["documentos"],       
+        summary="Formas Migratorias")
+async def procesa_documento(image: UploadFile = File(...)):
+    if not image.content_type.startswith("image/"):
+        return {"error": "El archivo no es una imagen"}
+    return await funciones.procesa_fm(image)
