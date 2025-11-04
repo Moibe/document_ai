@@ -3,3 +3,4 @@ requests
 google-auth
 httpx
 gunicorn
+uvicorn
