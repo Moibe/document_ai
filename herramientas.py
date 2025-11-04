@@ -1,5 +1,4 @@
 import base64
-import funciones
 from fastapi import UploadFile
 import json
 

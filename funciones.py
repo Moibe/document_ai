@@ -1,14 +1,8 @@
 import herramientas
 from fastapi import UploadFile
 import httpx
-from dotenv import load_dotenv
 from google.auth import default
 from google.auth.transport.requests import Request
-import json
-import time
-
-# load_dotenv()
-# print("Dot env cargado...")
 
 SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 
