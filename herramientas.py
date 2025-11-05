@@ -138,7 +138,7 @@ def extraer_entidades_recursivamente(entidades: List[Dict[str, Any]], datos_plan
 
     return datos_planos
 
-def obtener_datos_pasaporte_completos(data_json: Dict[str, Any]) -> Dict[str, str]:
+def obtener_datos_completos(data_json: Dict[str, Any]) -> Dict[str, str]:
     """
     Función de entrada que toma la respuesta completa de Document AI y 
     devuelve un diccionario plano con todas las entidades.
