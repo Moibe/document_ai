@@ -3,7 +3,11 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from io import BytesIO
 import funciones
 
-app = FastAPI()
+app = FastAPI(
+    title="RAD",
+    description="Reconocimiento avanzado de documentos via computer vision.",
+    version="0.0.0"
+)
 
 # Nuevo endpoint para Health Check
 @app.get("/health",
@@ -30,7 +34,7 @@ async def echo_image(image: UploadFile = File(...)):
 
 @app.post(
         "/procesa_pasaporte/", 
-        tags=["documentos"],       
+        tags=["Documentos"],       
         summary="Pasaportes")
 async def procesa_documento(image: UploadFile = File(...)):
     if not image.content_type.startswith("image/"):
@@ -39,7 +43,7 @@ async def procesa_documento(image: UploadFile = File(...)):
 
 @app.post(
         "/procesa_fm/", 
-        tags=["documentos"],       
+        tags=["Documentos"],       
         summary="Formas Migratorias")
 async def procesa_documento(image: UploadFile = File(...)):
     if not image.content_type.startswith("image/"):
@@ -48,7 +52,7 @@ async def procesa_documento(image: UploadFile = File(...)):
 
 @app.post(
         "/procesa_csf/", 
-        tags=["documentos"],       
+        tags=["Documentos"],       
         summary="SAT CSF")
 async def procesa_documento(pdf_file: UploadFile = File(...)):
     """
@@ -69,7 +73,7 @@ async def procesa_documento(pdf_file: UploadFile = File(...)):
 
 @app.post(
         "/procesa_cedula/", 
-        tags=["documentos"],       
+        tags=["Documentos"],       
         summary="Cédula Profesional")
 async def procesa_documento(pdf_file: UploadFile = File(...)):
     """
