@@ -10,8 +10,10 @@ SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 ENDPOINT_URL = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/24ee194a233ec5cc:process" #Endpoint entrenado
 ENDPOINT_FM = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/edfba1d1c9ed6145:process" #Endpoint Formas Migratorias
 ENDPOINT_CSF = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/339fc7810b01699b:process" #Endpoint Sat CSF
-#ENDPOINT_CEDULA = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/5a912a16db1fde4a:process" #Sustituir con el de Cédula Profesional
-ENDPOINT_CEDULA = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/5a912a16db1fde4a/processorVersions/pretrained-foundation-model-v1.5-pro-2025-06-20:process"
+#ENDPOINT_CEDULA = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/5a912a16db1fde4a:process" #Original
+#ENDPOINT_CEDULA = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/5a912a16db1fde4a/processorVersions/pretrained-foundation-model-v1.5-pro-2025-06-20:process" #Entrenado
+ENDPOINT_CEDULA = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/2da02220d55dabf1/processorVersions/pretrained-foundation-model-v1.5-pro-2025-06-20:process" #Nuevo
+
 async def procesa_pasaporte(image: UploadFile):
 
     credentials, _ = default(scopes=SCOPES)
@@ -188,8 +190,7 @@ async def procesa_cedula(pdf_file: UploadFile):
     credentials, _ = default(scopes=SCOPES)
     credentials.refresh(Request())
     access_token = credentials.token
-    print("Access token: ", access_token)
-    
+    print("Access token: ", access_token)    
     
     base64_content = await herramientas.upload_a_base64(pdf_file)
     
@@ -236,9 +237,9 @@ async def procesa_cedula(pdf_file: UploadFile):
     except Exception as e:
         return {"error": f"Error al ejecutar document ai: {e}"}
     
-
     # 4. Procesar el JSON de respuesta
     data_json = response.json() 
+    print("Data JSON procesada:", data_json)
     entidades = herramientas.obtener_datos_completos(data_json)
     
     return entidades

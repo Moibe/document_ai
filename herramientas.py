@@ -165,6 +165,7 @@ def obtener_datos_completos(data_json: Dict[str, Any]) -> Dict[str, str]:
         # 1. Acceder a la lista de entidades principales
         entidades_raiz = data_json['document']['entities']
         
+        
         # 2. Llamar a la función recursiva
         datos_finales = extraer_entidades_recursivamente(entidades_raiz)
         #datos_finales = extraer_entidades_recursivas(entidades_raiz, datos_resumidos)
