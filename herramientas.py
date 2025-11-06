@@ -365,7 +365,7 @@ def obtener_estructura_limpia_para_fastapi(data_json: Dict[str, Any]) -> Dict[st
     # 4. DEVOLVER EL DICCIONARIO LIMPIO
     return document_copy
 
-def unir_paginas_pdf_a_una_imagen(ruta_pdf, ruta_salida="pdf_unido.png", resolucion_dpi=150):
+def unir_paginas_pdf_a_una_imagen(ruta_pdf, ruta_salida, resolucion_dpi=150):
     """
     Convierte todas las páginas de un PDF y las une verticalmente en una sola imagen.
     """
