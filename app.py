@@ -6,6 +6,9 @@ import tempfile
 import herramientas
 import os
 
+from dotenv import load_dotenv
+load_dotenv()
+
 
 app = FastAPI(
     title="RAD",
