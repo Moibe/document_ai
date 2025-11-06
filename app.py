@@ -96,6 +96,11 @@ async def procesa_documento_csf(pdf_file: UploadFile = File(...)): # Renombre pa
             ruta_salida=temp_image_path
         )
 
+        if not os.path.exists(temp_image_path) or os.path.getsize(temp_image_path) == 0:
+            print("FATAL: La imagen de salida no existe o está vacía después de la unión.")
+            # Lanza una excepción interna, no de HTTP, para un mejor debug
+            raise RuntimeError("Fallo al generar la imagen unida del PDF.")
+
         print(f"PDF unido y guardado temporalmente como {os.path.basename(temp_image_path)}.")
         
         # 3. Retornar: Ahora procesa la IMAGEN temporal

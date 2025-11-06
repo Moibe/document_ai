@@ -137,14 +137,7 @@ async def procesa_csf(ruta_imagen_salida: str):
     credentials.refresh(Request())
     access_token = credentials.token
     print("Access token: ", access_token)
-
-    
-    # --- CAMBIO APLICADO: La función ahora espera 'pdf_file' ---
-    
-    # 1. Obtener el contenido del PDF y codificarlo en Base64.
-    # Asumimos que 'herramientas.upload_a_base64' lee el UploadFile y hace la codificación.
-    #base64_content = await herramientas.upload_a_base64(pdf_file)
-
+   
     base64_content = herramientas.archivo_local_a_base64(ruta_imagen_salida)
     
     # 3. Estructura de la petición a Document AI
