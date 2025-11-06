@@ -1,6 +1,13 @@
 import base64
 from fastapi import UploadFile
 import json
+import fitz
+from PIL import Image
+import io
+import json
+from typing import Dict, Any
+from typing import Dict, Any, List, Union
+import time
 
 def ruta_a_base64(ruta_archivo):
   """
@@ -58,9 +65,10 @@ def imprimir_entidades(data_json):
         # Navegar al nodo 'document' y luego a 'entities'
         entidades = data_json['document']['entities']
         
+        
         print("--- Entidades Extraídas del Documento ---")
         # Usamos json.dumps(..., indent=2) para un formato limpio y legible
-        print(json.dumps(entidades, indent=2))
+        print(json.dumps(entidades, indent=4))
         print("----------------------------------------")
         
         return entidades
@@ -71,42 +79,24 @@ def imprimir_entidades(data_json):
         return None
 
 
-import json
-from typing import Dict, Any
 
-def simplificar_entidades_pasaporte(data_json: Dict[str, Any]) -> Dict[str, str]:
-    """
-    Procesa el JSON completo de Document AI y devuelve un diccionario simple 
-    de tipo: valor, ignorando coordenadas y scores de confianza.
-    """
-    
-    # El diccionario final para los datos resumidos
+
+
+
+# --- FUNCIÓN PRINCIPAL REVISADA ---
+def obtener_todas_las_entidades(data_json: Dict[str, Any]) -> Dict[str, str]:
     datos_resumidos = {}
     
     try:
-        # Acceder a la lista de entidades
-        entidades = data_json['document']['entities']
+        entidades_raiz = data_json['document']['entities']
+        # Llamar a la función recursiva para iniciar el aplanamiento
+        extraer_entidades_recursivas(entidades_raiz, datos_resumidos)
         
-        # Iterar sobre cada entidad
-        for entidad in entidades:
-            # Extraer el nombre del campo (ej., 'NAME', 'PASSPORT_NUMBER')
-            nombre_campo = entidad.get('type')
-            
-            # Extraer el valor del campo
-            valor_campo = entidad.get('mentionText')
-            
-            # Guardar en el diccionario resumen si ambos existen
-            if nombre_campo and valor_campo:
-                # Puedes normalizar el nombre del campo a minúsculas o a otro formato si lo deseas
-                datos_resumidos[nombre_campo] = valor_campo
-                
     except KeyError:
-        print("Advertencia: No se pudo encontrar el nodo ['document']['entities'].")
+        # Manejar error si la estructura JSON no es la esperada
         return {}
 
     return datos_resumidos
-
-from typing import Dict, Any, List, Union
 
 def extraer_entidades_recursivamente(entidades: List[Dict[str, Any]], datos_planos: Dict[str, str] = None) -> Dict[str, str]:
     """
@@ -138,17 +128,46 @@ def extraer_entidades_recursivamente(entidades: List[Dict[str, Any]], datos_plan
 
     return datos_planos
 
+def extraer_entidades_recursivas(entidades: List[Dict[str, Any]], datos_resumidos: Dict[str, str]):
+    """
+    Función recursiva para extraer todas las entidades, incluidas las sub-entidades (propiedades),
+    y aplanarlas en un único diccionario.
+    """
+
+    if datos_planos is None:
+        datos_planos = {}
+
+
+    for entidad in entidades:
+        nombre_campo = entidad.get('type')
+        valor_campo = entidad.get('mentionText')
+
+        if nombre_campo and valor_campo:
+            # 1. Guardar la entidad (Padre o Hijo)
+            datos_resumidos[nombre_campo] = valor_campo
+        
+        # 2. Verificar y procesar Sub-entidades
+        if 'properties' in entidad and isinstance(entidad['properties'], list):
+            # Llama recursivamente a esta misma función para procesar los hijos
+            extraer_entidades_recursivas(entidad['properties'], datos_resumidos)
+
+    return datos_planos
+
 def obtener_datos_completos(data_json: Dict[str, Any]) -> Dict[str, str]:
     """
     Función de entrada que toma la respuesta completa de Document AI y 
     devuelve un diccionario plano con todas las entidades.
     """
+
+    datos_resumidos = {}
+
     try:
         # 1. Acceder a la lista de entidades principales
         entidades_raiz = data_json['document']['entities']
         
         # 2. Llamar a la función recursiva
         datos_finales = extraer_entidades_recursivamente(entidades_raiz)
+        #datos_finales = extraer_entidades_recursivas(entidades_raiz, datos_resumidos)
         
         # 3. Imprimir el resultado completo
         print("--- Datos de Pasaporte Completos (Recursivo) ---")
@@ -345,3 +364,81 @@ def obtener_estructura_limpia_para_fastapi(data_json: Dict[str, Any]) -> Dict[st
     
     # 4. DEVOLVER EL DICCIONARIO LIMPIO
     return document_copy
+
+def unir_paginas_pdf_a_una_imagen(ruta_pdf, ruta_salida="pdf_unido.png", resolucion_dpi=150):
+    """
+    Convierte todas las páginas de un PDF y las une verticalmente en una sola imagen.
+    """
+    try:
+        documento = fitz.open(ruta_pdf)
+        imagenes_pil = []
+        alto_total = 0
+        ancho_maximo = 0
+
+        # Calcular el factor de zoom a partir de la resolución DPI
+        factor_zoom = resolucion_dpi / 72.0
+        matriz = fitz.Matrix(factor_zoom, factor_zoom)
+        
+        # 1. Renderizar cada página y guardarla temporalmente como objeto PIL Image
+        print(f"Renderizando {documento.page_count} páginas...")
+        for num_pagina in range(documento.page_count):
+            pagina = documento.load_page(num_pagina)
+            pix = pagina.get_pixmap(matrix=matriz)
+            
+            # Convertir el pixmap de PyMuPDF a un objeto Image de Pillow
+            img_data = pix.tobytes("ppm")
+            imagen_pagina = Image.open(io.BytesIO(img_data))
+            
+            imagenes_pil.append(imagen_pagina)
+            
+            # Calcular las dimensiones totales
+            alto_total += imagen_pagina.height
+            ancho_maximo = max(ancho_maximo, imagen_pagina.width)
+
+        documento.close()
+        
+        # 2. Crear una nueva imagen vacía (lienzo) con las dimensiones totales
+        imagen_final = Image.new('RGB', (ancho_maximo, alto_total), 'white')
+        
+        # 3. Pegar las imágenes de las páginas en el lienzo
+        posicion_y = 0
+        for imagen in imagenes_pil:
+            # Pegar la imagen de la página en la posición Y actual
+            imagen_final.paste(imagen, (0, posicion_y))
+            # Actualizar la posición Y para la siguiente página
+            posicion_y += imagen.height
+        
+        # 4. Guardar la imagen final
+        imagen_final.save(ruta_salida)
+        print(f"\n✅ Documento unido y guardado en: {ruta_salida} (Resolución: {resolucion_dpi} DPI)")
+
+    except FileNotFoundError:
+        print(f"❌ Error: El archivo PDF '{ruta_pdf}' no fue encontrado.")
+    except Exception as e:
+        print(f"❌ Ocurrió un error inesperado: {e}")
+
+import base64
+import os
+
+def archivo_local_a_base64(ruta_archivo: str) -> str:
+    """
+    Lee el contenido binario de un archivo local y lo codifica en Base64.
+    """
+    try:
+        # 1. Leer el contenido binario del archivo local
+        # Usamos 'rb' (read binary) para leer los bytes del archivo de imagen
+        with open(ruta_archivo, "rb") as archivo_local:
+            contenido_binario = archivo_local.read()
+            
+        # 2. Codificar el contenido binario a Base64
+        base64_bytes = base64.b64encode(contenido_binario)
+        
+        # 3. Convertir los bytes Base64 a una cadena de texto y devolver
+        base64_cadena = base64_bytes.decode('utf-8')
+        
+        print(f"Archivo {os.path.basename(ruta_archivo)} codificado con éxito.")
+        return base64_cadena
+        
+    except FileNotFoundError:
+        print(f"Error: El archivo '{ruta_archivo}' no fue encontrado.")
+        return "" # O lanza una excepción, como vimos antes

@@ -3,15 +3,14 @@ from fastapi import UploadFile
 import httpx
 from google.auth import default
 from google.auth.transport.requests import Request
+import time
 
 SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 
-
-#ENDPOINT_URL = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/551531d174dec8aa:process" #Endpoint preentrenado
 ENDPOINT_URL = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/24ee194a233ec5cc:process" #Endpoint entrenado
 ENDPOINT_FM = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/edfba1d1c9ed6145:process" #Endpoint Formas Migratorias
 ENDPOINT_CSF = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/339fc7810b01699b:process" #Endpoint Sat CSF
-ENDPOINT_CEDULA = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/339fc7810b01699b:process" #Sustituir con el de Cédula Profesional
+ENDPOINT_CEDULA = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/5a912a16db1fde4a:process" #Sustituir con el de Cédula Profesional
 
 async def procesa_pasaporte(image: UploadFile):
 
@@ -67,13 +66,10 @@ async def procesa_pasaporte(image: UploadFile):
     # 1. Obtener el JSON
     data_json = response.json() 
 
-    # print("Response JSON:")
-    # print(json.dumps(data_json, indent=2)) 
-    print("Hecho")
     
     #entidades = herramientas.obtener_estructura_limpia_para_fastapi(data_json)
     #entidades = herramientas.imprimir_entidades(data_json)
-    entidades = herramientas.simplificar_entidades_pasaporte(data_json)
+    entidades = herramientas.obtener_datos_completos(data_json)
 
     return entidades 
 
@@ -132,7 +128,7 @@ async def procesa_fm(image: UploadFile):
     entidades = herramientas.obtener_datos_completos(data_json)
     return entidades 
 
-async def procesa_csf(pdf_file: UploadFile):
+async def procesa_csf(ruta_imagen_salida: str):
     """
     Procesa un archivo PDF (Constancia de Situación Fiscal) usando Google Document AI.
     """
@@ -141,29 +137,21 @@ async def procesa_csf(pdf_file: UploadFile):
     credentials.refresh(Request())
     access_token = credentials.token
     print("Access token: ", access_token)
+
     
     # --- CAMBIO APLICADO: La función ahora espera 'pdf_file' ---
     
     # 1. Obtener el contenido del PDF y codificarlo en Base64.
     # Asumimos que 'herramientas.upload_a_base64' lee el UploadFile y hace la codificación.
-    base64_content = await herramientas.upload_a_base64(pdf_file)
-    
-    # 2. Obtener el tipo MIME para la API (debe ser 'application/pdf')
-    mime_type = pdf_file.content_type
-    
-    # Validación extra: Asegurar que el tipo MIME es el correcto para el servicio
-    if mime_type != "application/pdf":
-        # Nota: Idealmente, esta validación ya se hizo en el endpoint, pero es una buena práctica.
-        print(f"ERROR INTERNO: Tipo MIME inesperado: {mime_type}")
-        raise ValueError("La función espera un Content-Type de application/pdf.")
+    #base64_content = await herramientas.upload_a_base64(pdf_file)
 
-    print("Mimetype es: ", mime_type)
+    base64_content = herramientas.archivo_local_a_base64(ruta_imagen_salida)
     
     # 3. Estructura de la petición a Document AI
     processor_json = {
         "rawDocument": {
             # Se envía el tipo MIME correcto ('application/pdf')
-            "mimeType": mime_type, 
+            "mimeType": "image/png", 
             # El contenido (el PDF completo) codificado en Base64
             "content": base64_content
         }
@@ -190,12 +178,11 @@ async def procesa_csf(pdf_file: UploadFile):
     
     except Exception as e:
         return {"error": f"Error al ejecutar document ai: {e}"}
-    
-    print("Response:")
-    print(response)
 
     # 4. Procesar el JSON de respuesta
     data_json = response.json() 
+    print(herramientas.imprimir_entidades(data_json))
+    
     entidades = herramientas.obtener_datos_completos(data_json)
     
     return entidades
@@ -256,8 +243,6 @@ async def procesa_cedula(pdf_file: UploadFile):
     except Exception as e:
         return {"error": f"Error al ejecutar document ai: {e}"}
     
-    print("Response:")
-    print(response)
 
     # 4. Procesar el JSON de respuesta
     data_json = response.json() 

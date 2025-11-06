@@ -2,6 +2,10 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, status
 from fastapi.responses import StreamingResponse, JSONResponse
 from io import BytesIO
 import funciones
+import tempfile
+import herramientas
+import os
+
 
 app = FastAPI(
     title="RAD",
@@ -67,9 +71,48 @@ async def procesa_documento(pdf_file: UploadFile = File(...)):
             detail="El archivo no es un PDF. Por favor, suba un archivo con Content-Type: application/pdf."
         )
     
-    # Puedes opcionalmente renombrar la función interna para mayor claridad,
-    # aunque sigue recibiendo el mismo objeto UploadFile.
-    return await funciones.procesa_csf(pdf_file)
+    # 1. Crear un archivo temporal
+    # Usamos tempfile.NamedTemporaryFile para obtener una ruta de archivo única.
+    # Usamos 'delete=False' para que no se borre inmediatamente al cerrarlo.
+    temp_file = None
+    try:
+        # Crea el archivo temporal con extensión .pdf
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file_obj:
+            # Lee el contenido del UploadFile de forma asíncrona
+            pdf_contents = await pdf_file.read()
+            
+            # Escribe el contenido en el archivo temporal
+            temp_file_obj.write(pdf_contents)
+            
+            # Obtiene la ruta del archivo temporal
+            temp_file_path = temp_file_obj.name
+
+        # 2. Llamar a tu función con la RUTA DEL ARCHIVO
+        # La función espera la ruta (str), no el objeto UploadFile.
+        ruta_imagen_salida = "docto.png"
+        
+        # Llama a tu función con la ruta del archivo temporal
+        # Nota: La función unir_paginas_pdf_a_una_imagen debe ser síncrona,
+        # si es pesada, deberías ejecutarla en un thread pool (run_in_threadpool).
+        herramientas.unir_paginas_pdf_a_una_imagen(
+            temp_file_path, 
+            ruta_salida=ruta_imagen_salida
+        )
+
+        print(f"PDF unido y guardado como {ruta_imagen_salida} para su posterior procesamiento.")
+    
+        return await funciones.procesa_csf(ruta_imagen_salida)
+    
+    except Exception as e:
+        print(f"Error procesando el PDF: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno al procesar el PDF."
+        )
+    finally:
+        # 4. Limpieza: Asegúrate de borrar el archivo temporal
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
 
 @app.post(
         "/procesa_cedula/", 
