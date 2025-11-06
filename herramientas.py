@@ -370,6 +370,7 @@ def unir_paginas_pdf_a_una_imagen(ruta_pdf, ruta_salida, resolucion_dpi=150):
     Convierte todas las páginas de un PDF y las une verticalmente en una sola imagen.
     """
     try:
+        print("Éste es el archivo que fitz quiere abrir", ruta_pdf)
         documento = fitz.open(ruta_pdf)
         imagenes_pil = []
         alto_total = 0
