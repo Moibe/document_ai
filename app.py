@@ -5,10 +5,12 @@ import funciones
 import tempfile
 import herramientas
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 load_dotenv()
 
+TEMP_DIR_ROOT = Path("/home/mbriseno/code/document_ai/temp_files")
 
 app = FastAPI(
     title="RAD",
@@ -79,8 +81,9 @@ async def procesa_documento_csf(pdf_file: UploadFile = File(...)): # Renombre pa
     temp_image_path = None
     
     try:
-        # Crea el archivo temporal para el PDF de entrada
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file_obj:
+        TEMP_DIR_ROOT.mkdir(parents=True, exist_ok=True)
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf", dir=TEMP_DIR_ROOT) as temp_file_obj:
             pdf_contents = await pdf_file.read()
             temp_file_obj.write(pdf_contents)
             temp_file_path = temp_file_obj.name # Ruta única del PDF
