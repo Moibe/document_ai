@@ -10,8 +10,8 @@ SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 ENDPOINT_URL = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/24ee194a233ec5cc:process" #Endpoint entrenado
 ENDPOINT_FM = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/edfba1d1c9ed6145:process" #Endpoint Formas Migratorias
 ENDPOINT_CSF = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/339fc7810b01699b:process" #Endpoint Sat CSF
-ENDPOINT_CEDULA = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/5a912a16db1fde4a:process" #Sustituir con el de Cédula Profesional
-
+#ENDPOINT_CEDULA = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/5a912a16db1fde4a:process" #Sustituir con el de Cédula Profesional
+ENDPOINT_CEDULA = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/5a912a16db1fde4a/processorVersions/pretrained-foundation-model-v1.5-pro-2025-06-20:process"
 async def procesa_pasaporte(image: UploadFile):
 
     credentials, _ = default(scopes=SCOPES)
