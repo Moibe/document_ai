@@ -1,32 +1,70 @@
+import httpx
 import herramientas
 from fastapi import UploadFile
-import httpx
 from google.auth import default
 from google.auth.transport.requests import Request
-import time
+from typing import Optional, Union
+
 
 SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 
-ENDPOINT_URL = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/24ee194a233ec5cc:process" #Endpoint entrenado
-ENDPOINT_FM = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/edfba1d1c9ed6145:process" #Endpoint Formas Migratorias
-ENDPOINT_CSF = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/339fc7810b01699b:process" #Endpoint Sat CSF
-#ENDPOINT_CEDULA = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/5a912a16db1fde4a:process" #Original
-#ENDPOINT_CEDULA = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/5a912a16db1fde4a/processorVersions/pretrained-foundation-model-v1.5-pro-2025-06-20:process" #Entrenado
-ENDPOINT_CEDULA = "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/2da02220d55dabf1/processorVersions/pretrained-foundation-model-v1.5-pro-2025-06-20:process" #Nuevo
+# Mapeo de endpoints por tipo de documento
+ENDPOINTS = {
+    "pasaporte": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/24ee194a233ec5cc:process",  # Endpoint entrenado
+    "fm": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/edfba1d1c9ed6145:process",  # Endpoint Formas Migratorias
+    "csf": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/339fc7810b01699b:process",  # Endpoint Sat CSF
+    "cedula": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/2da02220d55dabf1/processorVersions/pretrained-foundation-model-v1.5-pro-2025-06-20:process",  # Nuevo
+}
 
-async def procesa_pasaporte(image: UploadFile):
+# Mantener variables legadas para compatibilidad
+ENDPOINT_URL = ENDPOINTS["pasaporte"]
+ENDPOINT_FM = ENDPOINTS["fm"]
+ENDPOINT_CSF = ENDPOINTS["csf"]
+ENDPOINT_CEDULA = ENDPOINTS["cedula"]
 
+
+async def procesa_documento(
+    file: Union[UploadFile, str],
+    doc_type: str,
+    mime_type_override: Optional[str] = None
+):
+    """
+    Función genérica para procesar documentos con Google Document AI.
+    
+    Args:
+        file: UploadFile (para endpoints que reciben upload) o ruta string (para archivos locales)
+        doc_type: Tipo de documento ("pasaporte", "fm", "csf", "cedula")
+        mime_type_override: Tipo MIME personalizado (opcional, por defecto se detecta del archivo)
+    
+    Returns:
+        Diccionario con entidades extraídas o error
+    """
+    # Validar tipo de documento
+    if doc_type not in ENDPOINTS:
+        return {"error": f"Tipo de documento no soportado: {doc_type}. Opciones: {list(ENDPOINTS.keys())}"}
+    
+    endpoint_url = ENDPOINTS[doc_type]
+    
+    # Obtener credenciales y token
     credentials, _ = default(scopes=SCOPES)
     credentials.refresh(Request())
     access_token = credentials.token
-    print("Access token: ", access_token)
+    print(f"Access token obtenido para {doc_type}")
     
-    # Obtener la cadena Base64
-    base64_content = await herramientas.upload_a_base64(image)
-        
-    # Obtener el MIME type (FastAPI lo da directamente)
-    mime_type = image.content_type
-    print("Mimetype es: ", mime_type)
+    # Obtener base64 y MIME type según el tipo de entrada
+    try:
+        if isinstance(file, str):
+            # Es una ruta de archivo local
+            base64_content = herramientas.archivo_local_a_base64(file)
+            mime_type = mime_type_override or "image/png"
+        else:
+            # Es un UploadFile
+            base64_content = await herramientas.upload_a_base64(file)
+            mime_type = mime_type_override or (file.content_type or "application/octet-stream")
+    except Exception as e:
+        return {"error": f"Error al procesar archivo: {e}"}
+    
+    print(f"MIME type para {doc_type}: {mime_type}")
     
     # Estructura del JSON para Document AI
     processor_json = {
@@ -45,201 +83,47 @@ async def procesa_pasaporte(image: UploadFile):
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
-                                    url=ENDPOINT_URL, 
-                                    headers=headers, 
-                                    json=processor_json
-                                    )
+                url=endpoint_url, 
+                headers=headers, 
+                json=processor_json
+            )
             response.raise_for_status()
 
     except httpx.HTTPStatusError:
-        # Si la API devuelve 400, imprime el mensaje de error de Google
-        print("Error 400/4xx/5xx del servidor.")
-        print("Mensaje de error de Document AI:", response.text) 
-        # Devuelve el error al usuario
+        print(f"Error {response.status_code} del servidor Document AI.")
+        print("Mensaje de error:", response.text) 
         return {"error": f"Error de Document AI: {response.status_code}", "details": response.json()}
     
     except Exception as e:
-        return {"error": f"Error al ejecutar document ai: {e}"}
+        return {"error": f"Error al ejecutar Document AI: {e}"}
     
+    print(f"Respuesta recibida para {doc_type}")
 
-    print("Response:")
-    print(response)
+    # Obtener el JSON
+    try:
+        data_json = response.json()
+        entidades = herramientas.obtener_datos_completos(data_json)
+        return entidades
+    except Exception as e:
+        return {"error": f"Error al procesar respuesta: {e}"}
 
-    # 1. Obtener el JSON
-    data_json = response.json() 
 
-    
-    #entidades = herramientas.obtener_estructura_limpia_para_fastapi(data_json)
-    #entidades = herramientas.imprimir_entidades(data_json)
-    entidades = herramientas.obtener_datos_completos(data_json)
+# Funciones wrapper para compatibilidad con app.py (mantienen la interfaz anterior)
+async def procesa_pasaporte(image: UploadFile):
+    """Procesa un pasaporte."""
+    return await procesa_documento(image, "pasaporte")
 
-    return entidades 
 
 async def procesa_fm(image: UploadFile):
-    
-    credentials, _ = default(scopes=SCOPES)
-    credentials.refresh(Request())
-    access_token = credentials.token
-    print("Access token: ", access_token)
+    """Procesa una forma migratoria."""
+    return await procesa_documento(image, "fm")
 
-    base64_content = await herramientas.upload_a_base64(image)
-        
-    mime_type = image.content_type
-    print("Mimetype es: ", mime_type)
-    
-    processor_json = {
-        "rawDocument": {
-            "mimeType": mime_type,
-            "content": base64_content
-        }
-    }
-
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json; charset=utf-8"
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                                    url=ENDPOINT_FM, 
-                                    headers=headers, 
-                                    json=processor_json
-                                    )
-            response.raise_for_status()
-
-    except httpx.HTTPStatusError:
-        # Si la API devuelve 400, imprime el mensaje de error de Google
-        print("Error 400/4xx/5xx del servidor.")
-        print("Mensaje de error de Document AI:", response.text) 
-        # Devuelve el error al usuario
-        return {"error": f"Error de Document AI: {response.status_code}", "details": response.json()}
-    
-    except Exception as e:
-        return {"error": f"Error al ejecutar document ai: {e}"}
-    
-
-    print("Response:")
-    print(response)
-
-    # 1. Obtener el JSON
-    data_json = response.json() 
-    
-    #entidades = herramientas.imprimir_entidades(data_json)
-    #entidades = herramientas.simplificar_entidades_pasaporte(data_json)
-    entidades = herramientas.obtener_datos_completos(data_json)
-    return entidades 
 
 async def procesa_csf(ruta_imagen_salida: str):
-    """
-    Procesa un archivo PDF (Constancia de Situación Fiscal) usando Google Document AI.
-    """
+    """Procesa un archivo CSF (Constancia de Situación Fiscal)."""
+    return await procesa_documento(ruta_imagen_salida, "csf", mime_type_override="image/png")
 
-    credentials, _ = default(scopes=SCOPES)
-    credentials.refresh(Request())
-    access_token = credentials.token
-    print("Access token: ", access_token)
-   
-    base64_content = herramientas.archivo_local_a_base64(ruta_imagen_salida)
-    
-    # 3. Estructura de la petición a Document AI
-    processor_json = {
-        "rawDocument": {
-            # Se envía el tipo MIME correcto ('application/pdf')
-            "mimeType": "image/png", 
-            # El contenido (el PDF completo) codificado en Base64
-            "content": base64_content
-        }
-    }
-
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json; charset=utf-8"
-    }
-
-    try: 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                                            url=ENDPOINT_CSF, 
-                                            headers=headers, 
-                                            json=processor_json
-                                            )
-            response.raise_for_status()
-
-    except httpx.HTTPStatusError:
-        print("Error 400/4xx/5xx del servidor.")
-        print("Mensaje de error de Document AI:", response.text) 
-        return {"error": f"Error de Document AI: {response.status_code}", "details": response.json()}
-    
-    except Exception as e:
-        return {"error": f"Error al ejecutar document ai: {e}"}
-
-    # 4. Procesar el JSON de respuesta
-    data_json = response.json() 
-    print(herramientas.imprimir_entidades(data_json))
-    
-    entidades = herramientas.obtener_datos_completos(data_json)
-    
-    return entidades
 
 async def procesa_cedula(pdf_file: UploadFile):
-    """
-    Procesa un archivo PDF con la Cédula Profesional usando Google Document AI.
-    """
-
-    credentials, _ = default(scopes=SCOPES)
-    credentials.refresh(Request())
-    access_token = credentials.token
-    print("Access token: ", access_token)    
-    
-    base64_content = await herramientas.upload_a_base64(pdf_file)
-    
-    # 2. Obtener el tipo MIME para la API (debe ser 'application/pdf')
-    mime_type = pdf_file.content_type
-    
-    # Validación extra: Asegurar que el tipo MIME es el correcto para el servicio
-    if mime_type != "application/pdf":
-        # Nota: Idealmente, esta validación ya se hizo en el endpoint, pero es una buena práctica.
-        print(f"ERROR INTERNO: Tipo MIME inesperado: {mime_type}")
-        raise ValueError("La función espera un Content-Type de application/pdf.")
-
-    print("Mimetype es: ", mime_type)
-    
-    # 3. Estructura de la petición a Document AI
-    processor_json = {
-        "rawDocument": {
-            # Se envía el tipo MIME correcto ('application/pdf')
-            "mimeType": mime_type, 
-            # El contenido (el PDF completo) codificado en Base64
-            "content": base64_content
-        }
-    }
-
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json; charset=utf-8"
-    }
-
-    try: 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                                            url=ENDPOINT_CEDULA, 
-                                            headers=headers, 
-                                            json=processor_json
-                                            )
-            response.raise_for_status()
-
-    except httpx.HTTPStatusError:
-        print("Error 400/4xx/5xx del servidor.")
-        print("Mensaje de error de Document AI:", response.text) 
-        return {"error": f"Error de Document AI: {response.status_code}", "details": response.json()}
-    
-    except Exception as e:
-        return {"error": f"Error al ejecutar document ai: {e}"}
-    
-    # 4. Procesar el JSON de respuesta
-    data_json = response.json() 
-    print("Data JSON procesada:", data_json)
-    entidades = herramientas.obtener_datos_completos(data_json)
-    
-    return entidades
+    """Procesa una cédula profesional (PDF)."""
+    return await procesa_documento(pdf_file, "cedula")
