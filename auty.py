@@ -1,7 +1,6 @@
+from dotenv import load_dotenv
 from google.auth import default
 from google.auth.transport.requests import Request
-from dotenv import load_dotenv
-#from google.auth import scopes
 
 #load_dotenv()
 #DOCUMENT_AI_SCOPE = scopes.CLOUD_PLATFORM
@@ -13,6 +12,3 @@ credentials, _ = default()
 #credentials, _ = default(scopes=SCOPES)
 credentials.refresh(Request())
 access_token = credentials.token
-
-print("Access token:")
-print(access_token)

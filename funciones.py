@@ -2,9 +2,8 @@ import httpx
 import herramientas
 from fastapi import UploadFile
 from google.auth import default
-from google.auth.transport.requests import Request
 from typing import Optional, Union
-
+from google.auth.transport.requests import Request
 
 SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 
@@ -14,13 +13,24 @@ ENDPOINTS = {
     "fm": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/edfba1d1c9ed6145:process",  # Endpoint Formas Migratorias
     "csf": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/339fc7810b01699b:process",  # Endpoint Sat CSF
     "cedula": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/2da02220d55dabf1/processorVersions/pretrained-foundation-model-v1.5-pro-2025-06-20:process",  # Nuevo
+    "ine": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/bf35151f51b51521:process",  # INE
 }
 
-# Mantener variables legadas para compatibilidad
+# Mapeo de MIME types por tipo de documento
+MIME_TYPES = {
+    "pasaporte": "image/png",     # Imagen
+    "fm": "image/png",             # Imagen
+    "csf": "image/png",            # Imagen
+    "cedula": "application/pdf",   # PDF
+    "ine": "image/jpeg",           # JPG
+}
+
+# Variables legadas para compatibilidad
 ENDPOINT_URL = ENDPOINTS["pasaporte"]
 ENDPOINT_FM = ENDPOINTS["fm"]
 ENDPOINT_CSF = ENDPOINTS["csf"]
 ENDPOINT_CEDULA = ENDPOINTS["cedula"]
+ENDPOINT_INE = ENDPOINTS["ine"]
 
 
 async def procesa_documento(
@@ -51,16 +61,16 @@ async def procesa_documento(
     access_token = credentials.token
     print(f"Access token obtenido para {doc_type}")
     
-    # Obtener base64 y MIME type según el tipo de entrada
+    #Obtengo base64 y MIME type según el tipo de entrada
     try:
         if isinstance(file, str):
             # Es una ruta de archivo local
             base64_content = herramientas.archivo_local_a_base64(file)
-            mime_type = mime_type_override or "image/png"
+            mime_type = mime_type_override or MIME_TYPES.get(doc_type, "image/png")
         else:
             # Es un UploadFile
             base64_content = await herramientas.upload_a_base64(file)
-            mime_type = mime_type_override or (file.content_type or "application/octet-stream")
+            mime_type = mime_type_override or MIME_TYPES.get(doc_type, file.content_type or "application/octet-stream")
     except Exception as e:
         return {"error": f"Error al procesar archivo: {e}"}
     
@@ -99,7 +109,6 @@ async def procesa_documento(
     
     print(f"Respuesta recibida para {doc_type}")
 
-    # Obtener el JSON
     try:
         data_json = response.json()
         entidades = herramientas.obtener_datos_completos(data_json)
@@ -127,3 +136,8 @@ async def procesa_csf(ruta_imagen_salida: str):
 async def procesa_cedula(pdf_file: UploadFile):
     """Procesa una cédula profesional (PDF)."""
     return await procesa_documento(pdf_file, "cedula")
+
+
+async def procesa_ine(image: UploadFile):
+    """Procesa una INE (imagen JPG)."""
+    return await procesa_documento(image, "ine")

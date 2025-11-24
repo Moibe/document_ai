@@ -1,13 +1,11 @@
-import base64
-from fastapi import UploadFile
-import json
-import fitz
-from PIL import Image
 import io
 import json
+import fitz
+import base64
+from PIL import Image
 from typing import Dict, Any
-from typing import Dict, Any, List, Union
-import time
+from fastapi import UploadFile
+from typing import Dict, Any, List
 
 def ruta_a_base64(ruta_archivo):
   """
@@ -20,11 +18,10 @@ def ruta_a_base64(ruta_archivo):
     str: La cadena Base64 codificada.
   """
   try:
-    # Abre el archivo en modo binario ('rb')
     with open(ruta_archivo, "rb") as archivo:
-      # Lee todo el contenido del archivo
+
       contenido_binario = archivo.read()
-      # Codifica el contenido binario a Base64
+      #Codificar el contenido binario a Base64
       base64_bytes = base64.b64encode(contenido_binario)
       # Convierte los bytes Base64 a una cadena de texto y la devuelve
       base64_cadena = base64_bytes.decode('utf-8')
@@ -37,37 +34,27 @@ async def upload_a_base64(archivo_subido: UploadFile) -> str:
     """
     Lee el contenido binario de un objeto UploadFile y lo codifica en Base64.
     """
-    # 1. Leer el contenido binario del archivo subido (asíncrono)
-    #    IMPORTANTE: .read() lee todo el archivo a la memoria.
+    
     contenido_binario = await archivo_subido.read()
-    
-    # 2. Codificar el contenido binario a Base64
     base64_bytes = base64.b64encode(contenido_binario)
-    
-    # 3. Convertir los bytes Base64 a una cadena de texto y devolver
     base64_cadena = base64_bytes.decode('utf-8')
 
-    print("Retornando cadena:")
-    print("Inicio de la cadena Base64:", base64_cadena[:50] + "...") 
+    # print("Retornando cadena:")
+    # print("Inicio de la cadena Base64:", base64_cadena[:50] + "...") 
     
     return base64_cadena
-
-
-# Asumiendo que 'data_json' es el diccionario Python que recibí de response.json()
-# Ejemplo: data_json = response.json()
 
 def imprimir_entidades(data_json):
     """Extrae e imprime la sección 'entities' del JSON de Document AI."""
     
-    # La información estructurada del documento se encuentra en data_json['document']['entities']
-    
+    # La información estructurada del documento se encuentra en data_json['document']['entities']    
     try:
         # Navegar al nodo 'document' y luego a 'entities'
         entidades = data_json['document']['entities']
         
         
         print("--- Entidades Extraídas del Documento ---")
-        # Usamos json.dumps(..., indent=2) para un formato limpio y legible
+        # Uso json.dumps(..., indent=2) para un formato limpio y legible
         print(json.dumps(entidades, indent=4))
         print("----------------------------------------")
         
@@ -77,10 +64,6 @@ def imprimir_entidades(data_json):
         # Manejo de error si la estructura no es la esperada (por ejemplo, si 'document' no existe)
         print("Error: La respuesta de Document AI no contiene el nodo esperado ['document']['entities'].")
         return None
-
-
-
-
 
 
 # --- FUNCIÓN PRINCIPAL REVISADA ---
@@ -93,7 +76,7 @@ def obtener_todas_las_entidades(data_json: Dict[str, Any]) -> Dict[str, str]:
         extraer_entidades_recursivas(entidades_raiz, datos_resumidos)
         
     except KeyError:
-        # Manejar error si la estructura JSON no es la esperada
+        # Manejo error si la estructura JSON no es la esperada
         return {}
 
     return datos_resumidos
@@ -225,7 +208,6 @@ def imprimir_claves_raiz(data_json: Dict[str, Any]):
         print(f"Error: La respuesta no es un diccionario JSON. Tipo recibido: {type(data_json)}")
     print("-------------------------------------------\n")
 
-from typing import Dict, Any
 
 def mapear_estructura_json(data: Any, nivel=0) -> Dict[str, Any]:
     """

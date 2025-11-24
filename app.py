@@ -1,11 +1,11 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException, status
-from fastapi.responses import StreamingResponse, JSONResponse
-from io import BytesIO
-import funciones
-import tempfile
-import herramientas
 import os
+import tempfile
+import funciones
+import herramientas
+from io import BytesIO
 from pathlib import Path
+from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi import FastAPI, File, UploadFile, HTTPException, status
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -76,7 +76,6 @@ async def procesa_documento_csf(pdf_file: UploadFile = File(...)): # Renombre pa
             detail="El archivo no es un PDF. Por favor, suba un archivo con Content-Type: application/pdf."
         )
     
-    # 1. Declarar las variables de ruta antes del try para el bloque finally
     temp_file_path = None
     temp_image_path = None
     
@@ -92,7 +91,6 @@ async def procesa_documento_csf(pdf_file: UploadFile = File(...)): # Renombre pa
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_image_obj:
             temp_image_path = temp_image_obj.name # Ruta única de la imagen
 
-        # 2. Llamar a tu función con las RUTAS TEMPORALES ÚNICAS
         # Ya no usamos la ruta estática "docto.png"
         herramientas.unir_paginas_pdf_a_una_imagen(
             temp_file_path, 
@@ -102,11 +100,10 @@ async def procesa_documento_csf(pdf_file: UploadFile = File(...)): # Renombre pa
         if not os.path.exists(temp_image_path) or os.path.getsize(temp_image_path) == 0:
             print("FATAL: La imagen de salida no existe o está vacía después de la unión.")
             # Lanza una excepción interna, no de HTTP, para un mejor debug
-            raise RuntimeError("Fallo al generar la imagen unida del PDF.")
+            raise RuntimeError("Falló al generar la imagen unida del PDF.")
 
         print(f"PDF unido y guardado temporalmente como {os.path.basename(temp_image_path)}.")
         
-        # 3. Retornar: Ahora procesa la IMAGEN temporal
         return await funciones.procesa_csf(temp_image_path)
     
     except Exception as e:
@@ -117,7 +114,6 @@ async def procesa_documento_csf(pdf_file: UploadFile = File(...)): # Renombre pa
         )
         
     finally:
-        # 4. Limpieza COMPLETA: Asegúrate de borrar AMBOS archivos temporales
         if temp_file_path and os.path.exists(temp_file_path):
             os.remove(temp_file_path)
         if temp_image_path and os.path.exists(temp_image_path):
@@ -132,12 +128,28 @@ async def procesa_documento(pdf_file: UploadFile = File(...)):
     Recibe un archivo PDF de la Cédula Profesional y lo envía a la función de procesamiento.
     """
     
-    # --- CAMBIO CLAVE 1: Validar el tipo MIME de PDF ---
     if pdf_file.content_type != "application/pdf":
-        # Usamos HTTPException 400 Bad Request para indicar un error del cliente
+        # Uso HTTPException 400 Bad Request para indicar un error del cliente
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El archivo no es un PDF. Por favor, suba un archivo con Content-Type: application/pdf."
         )
     
     return await funciones.procesa_cedula(pdf_file)
+
+@app.post(
+        "/procesa_ine/", 
+        tags=["Documentos"],       
+        summary="INE")
+async def procesa_documento_ine(image: UploadFile = File(...)):
+    """
+    Recibe una imagen JPG de la INE y la envía a la función de procesamiento.
+    """
+    
+    if not image.content_type or not (image.content_type.startswith("image/")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El archivo no es una imagen. Por favor, suba un archivo con Content-Type: image/* (ej: image/jpeg)."
+        )
+    
+    return await funciones.procesa_ine(image)
