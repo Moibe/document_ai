@@ -9,11 +9,11 @@ SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 
 # Mapeo de endpoints por tipo de documento
 ENDPOINTS = {
-    "pasaporte": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/24ee194a233ec5cc:process",  # Endpoint entrenado
+    "pasaporte": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/24ee194a233ec5cc:process",  # Endpoint Pasaporte
     "fm": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/edfba1d1c9ed6145:process",  # Endpoint Formas Migratorias
     "csf": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/339fc7810b01699b:process",  # Endpoint Sat CSF
-    "cedula": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/2da02220d55dabf1/processorVersions/pretrained-foundation-model-v1.5-pro-2025-06-20:process",  # Nuevo
-    "ine": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/bf35151f51b51521:process",  # INE
+    "cedula": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/2da02220d55dabf1/processorVersions/pretrained-foundation-model-v1.5-pro-2025-06-20:process",  # Endpoint Cédula Profesional
+    "ine": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/bf35151f51b51521:process",  # Endpoint INE
 }
 
 # Mapeo de MIME types por tipo de documento

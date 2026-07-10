@@ -62,8 +62,8 @@ async def procesa_documento(image: UploadFile = File(...)):
 @app.post(
     "/procesa_csf/", 
     tags=["Documentos"],     
-    summary="SAT CSF")
-async def procesa_documento_csf(pdf_file: UploadFile = File(...)): # Renombre para evitar conflicto
+    summary="Cédula Fiscal SAT")
+async def procesa_documento_csf(pdf_file: UploadFile = File(...)): 
     """
     Recibe un archivo PDF del SAT (CSF), lo convierte a una imagen unificada 
     y lo envía a la función de procesamiento.
