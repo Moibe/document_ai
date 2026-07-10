@@ -105,7 +105,11 @@ async def procesa_documento_csf(pdf_file: UploadFile = File(...)):
         print(f"PDF unido y guardado temporalmente como {os.path.basename(temp_image_path)}.")
         
         return await funciones.procesa_csf(temp_image_path)
-    
+
+    except HTTPException:
+        # Dejar pasar los errores con código HTTP explícito (ej. credenciales, Document AI)
+        raise
+
     except Exception as e:
         print(f"Error procesando el PDF: {e}")
         raise HTTPException(

@@ -1,6 +1,6 @@
 import httpx
 import herramientas
-from fastapi import UploadFile
+from fastapi import UploadFile, HTTPException, status
 from google.auth import default
 from typing import Optional, Union
 from google.auth.transport.requests import Request
@@ -51,16 +51,26 @@ async def procesa_documento(
     """
     # Validar tipo de documento
     if doc_type not in ENDPOINTS:
-        return {"error": f"Tipo de documento no soportado: {doc_type}. Opciones: {list(ENDPOINTS.keys())}"}
-    
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Tipo de documento no soportado: {doc_type}. Opciones: {list(ENDPOINTS.keys())}"
+        )
+
     endpoint_url = ENDPOINTS[doc_type]
-    
+
     # Obtener credenciales y token
-    credentials, _ = default(scopes=SCOPES)
-    credentials.refresh(Request())
-    access_token = credentials.token
-    print(f"Access token obtenido para {doc_type}")
-    
+    try:
+        credentials, _ = default(scopes=SCOPES)
+        credentials.refresh(Request())
+        access_token = credentials.token
+        print(f"Access token obtenido para {doc_type}")
+    except Exception as e:
+        print(f"Error al obtener credenciales de Google: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No se pudieron obtener las credenciales de Google Cloud. Verifica la configuración de GOOGLE_APPLICATION_CREDENTIALS en el servidor."
+        )
+
     #Obtengo base64 y MIME type según el tipo de entrada
     try:
         if isinstance(file, str):
@@ -72,7 +82,11 @@ async def procesa_documento(
             base64_content = await herramientas.upload_a_base64(file)
             mime_type = mime_type_override or MIME_TYPES.get(doc_type, file.content_type or "application/octet-stream")
     except Exception as e:
-        return {"error": f"Error al procesar archivo: {e}"}
+        print(f"Error al procesar archivo: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error al procesar el archivo enviado: {e}"
+        )
     
     print(f"MIME type para {doc_type}: {mime_type}")
     
@@ -101,12 +115,19 @@ async def procesa_documento(
 
     except httpx.HTTPStatusError:
         print(f"Error {response.status_code} del servidor Document AI.")
-        print("Mensaje de error:", response.text) 
-        return {"error": f"Error de Document AI: {response.status_code}", "details": response.json()}
-    
+        print("Mensaje de error:", response.text)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Error de Document AI ({response.status_code}): {response.text}"
+        )
+
     except Exception as e:
-        return {"error": f"Error al ejecutar Document AI: {e}"}
-    
+        print(f"Error al ejecutar Document AI: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Error al comunicarse con Document AI: {e}"
+        )
+
     print(f"Respuesta recibida para {doc_type}")
 
     try:
@@ -114,7 +135,11 @@ async def procesa_documento(
         entidades = herramientas.obtener_datos_completos(data_json)
         return entidades
     except Exception as e:
-        return {"error": f"Error al procesar respuesta: {e}"}
+        print(f"Error al procesar respuesta: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Error al procesar la respuesta de Document AI: {e}"
+        )
 
 
 # Funciones wrapper para compatibilidad con app.py (mantienen la interfaz anterior)
