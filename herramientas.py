@@ -2,10 +2,13 @@ import io
 import json
 import fitz
 import base64
+import logging
 from PIL import Image
 from typing import Dict, Any
 from fastapi import UploadFile
 from typing import Dict, Any, List
+
+logger = logging.getLogger(__name__)
 
 def ruta_a_base64(ruta_archivo):
   """
@@ -27,7 +30,8 @@ def ruta_a_base64(ruta_archivo):
       base64_cadena = base64_bytes.decode('utf-8')
       return base64_cadena
   except FileNotFoundError:
-    print(f"Error: El archivo no se encontró en la ruta: {ruta_archivo}")
+    # print(f"Error: El archivo no se encontró en la ruta: {ruta_archivo}")
+    logger.error(f"Error: El archivo no se encontró en la ruta: {ruta_archivo}")
     return None
   
 async def upload_a_base64(archivo_subido: UploadFile) -> str:
@@ -53,16 +57,19 @@ def imprimir_entidades(data_json):
         entidades = data_json['document']['entities']
         
         
-        print("--- Entidades Extraídas del Documento ---")
-        # Uso json.dumps(..., indent=2) para un formato limpio y legible
-        print(json.dumps(entidades, indent=4))
-        print("----------------------------------------")
-        
+        # print("--- Entidades Extraídas del Documento ---")
+        # # Uso json.dumps(..., indent=2) para un formato limpio y legible
+        # print(json.dumps(entidades, indent=4))
+        # print("----------------------------------------")
+        logger.debug("--- Entidades Extraídas del Documento ---")
+        logger.debug(json.dumps(entidades, indent=4))
+
         return entidades
-        
+
     except KeyError:
         # Manejo de error si la estructura no es la esperada (por ejemplo, si 'document' no existe)
-        print("Error: La respuesta de Document AI no contiene el nodo esperado ['document']['entities'].")
+        # print("Error: La respuesta de Document AI no contiene el nodo esperado ['document']['entities'].")
+        logger.error("La respuesta de Document AI no contiene el nodo esperado ['document']['entities'].")
         return None
 
 
@@ -136,32 +143,82 @@ def extraer_entidades_recursivas(entidades: List[Dict[str, Any]], datos_resumido
 
     return datos_planos
 
-def obtener_datos_completos(data_json: Dict[str, Any]) -> Dict[str, str]:
+def obtener_valor_normalizado(entidad: Dict[str, Any]):
     """
-    Función de entrada que toma la respuesta completa de Document AI y 
-    devuelve un diccionario plano con todas las entidades.
-    """
+    Devuelve el valor de una entidad.
 
-    datos_resumidos = {}
+    - Fechas COMPLETAS (año/mes/día): se normalizan a formato ISO 'YYYY-MM-DD'.
+    - Cualquier otro caso: se conserva el 'mentionText' crudo tal como lo detectó
+      Document AI, preservando el formato original (incluidos los ceros a la
+      izquierda de códigos como localidad '0181' o municipio '064').
+    """
+    nv = entidad.get('normalizedValue')
+
+    # Solo normalizamos fechas completas a ISO; el resto se deja como texto original
+    # para no perder ceros a la izquierda ni el formato detectado.
+    if nv and 'dateValue' in nv:
+        dv = nv['dateValue']
+        anio = dv.get('year')
+        mes = dv.get('month')
+        dia = dv.get('day')
+        if anio and mes and dia:
+            return f"{anio:04d}-{mes:02d}-{dia:02d}"
+
+    # Texto crudo: preserva ceros a la izquierda y formato original
+    return entidad.get('mentionText')
+
+
+def extraer_entidades_anidadas(entidades: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Función recursiva que convierte las entidades de Document AI en un diccionario,
+    CONSERVANDO la jerarquía: las entidades con sub-propiedades (ej. 'domicilio')
+    se devuelven como un sub-diccionario anidado, evitando colisiones de llaves
+    con entidades del nivel raíz (ej. 'estado' y 'localidad').
+    """
+    resultado = {}
+
+    for entidad in entidades:
+        nombre_campo = entidad.get('type')
+        if not nombre_campo:
+            continue
+
+        if entidad.get('properties'):
+            # Entidad padre (ej. 'domicilio'): anidar sus sub-entidades
+            resultado[nombre_campo] = extraer_entidades_anidadas(entidad['properties'])
+        else:
+            valor = obtener_valor_normalizado(entidad)
+            if valor is not None:
+                resultado[nombre_campo] = valor
+
+    return resultado
+
+
+def obtener_datos_completos(data_json: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Función de entrada que toma la respuesta completa de Document AI y
+    devuelve un diccionario con todas las entidades: anidado donde el documento
+    tiene jerarquía (ej. 'domicilio') y con valores normalizados cuando existen.
+    """
 
     try:
         # 1. Acceder a la lista de entidades principales
         entidades_raiz = data_json['document']['entities']
-        
-        
-        # 2. Llamar a la función recursiva
-        datos_finales = extraer_entidades_recursivamente(entidades_raiz)
-        #datos_finales = extraer_entidades_recursivas(entidades_raiz, datos_resumidos)
-        
+
+        # 2. Llamar a la función recursiva (conserva anidación y normaliza valores)
+        datos_finales = extraer_entidades_anidadas(entidades_raiz)
+
         # 3. Imprimir el resultado completo
-        print("--- Datos de Pasaporte Completos (Recursivo) ---")
-        print(json.dumps(datos_finales, indent=2))
-        print("------------------------------------------------")
-        
+        # print("--- Datos del Documento (Anidado + Normalizado) ---")
+        # print(json.dumps(datos_finales, indent=2))
+        # print("----------------------------------------------------")
+        logger.debug("--- Datos del Documento (Anidado + Normalizado) ---")
+        logger.debug(json.dumps(datos_finales, indent=2))
+
         return datos_finales
-        
+
     except KeyError as e:
-        print(f"Error: No se pudo encontrar el nodo 'document' o 'entities'. Error: {e}")
+        # print(f"Error: No se pudo encontrar el nodo 'document' o 'entities'. Error: {e}")
+        logger.error(f"No se pudo encontrar el nodo 'document' o 'entities'. Error: {e}")
         return {}
 
 def inspeccionar_respuesta_sin_base64(data_json: Dict[str, Any]):
@@ -171,7 +228,8 @@ def inspeccionar_respuesta_sin_base64(data_json: Dict[str, Any]):
     """
     
     if 'document' not in data_json:
-        print("Error: El JSON no contiene la clave 'document'.")
+        # print("Error: El JSON no contiene la clave 'document'.")
+        logger.error("El JSON no contiene la clave 'document'.")
         return
 
     # Creamos una copia del diccionario para poder modificarlo
@@ -189,24 +247,29 @@ def inspeccionar_respuesta_sin_base64(data_json: Dict[str, Any]):
         del document_copy['content']
 
     # 2. Imprimir el JSON restante con formato
-    print("\n--- Estructura del Documento (Excluyendo Base64) ---")
-    print(json.dumps(document_copy, indent=2))
-    print("----------------------------------------------------\n")
+    # print("\n--- Estructura del Documento (Excluyendo Base64) ---")
+    # print(json.dumps(document_copy, indent=2))
+    # print("----------------------------------------------------\n")
+    logger.debug("--- Estructura del Documento (Excluyendo Base64) ---")
+    logger.debug(json.dumps(document_copy, indent=2))
 
 
 
 def imprimir_claves_raiz(data_json: Dict[str, Any]):
     """Imprime todas las claves del diccionario de respuesta principal."""
     
-    print("\n--- CLAVES PRINCIPALES DEL JSON RECIBIDO ---")
+    # print("\n--- CLAVES PRINCIPALES DEL JSON RECIBIDO ---")
+    logger.debug("--- CLAVES PRINCIPALES DEL JSON RECIBIDO ---")
     if isinstance(data_json, dict):
         for key in data_json.keys():
             # Muestra el tipo de valor para ver si es un diccionario o una lista
             value_type = type(data_json[key]).__name__
-            print(f"Clave: '{key}' | Tipo: {value_type}")
+            # print(f"Clave: '{key}' | Tipo: {value_type}")
+            logger.debug(f"Clave: '{key}' | Tipo: {value_type}")
     else:
-        print(f"Error: La respuesta no es un diccionario JSON. Tipo recibido: {type(data_json)}")
-    print("-------------------------------------------\n")
+        # print(f"Error: La respuesta no es un diccionario JSON. Tipo recibido: {type(data_json)}")
+        logger.error(f"La respuesta no es un diccionario JSON. Tipo recibido: {type(data_json)}")
+    # print("-------------------------------------------\n")
 
 
 def mapear_estructura_json(data: Any, nivel=0) -> Dict[str, Any]:
@@ -260,11 +323,14 @@ def generar_esquema_document_ai(data_json: Dict[str, Any]) -> None:
     if 'document' in data_json:
         esquema_documento = mapear_estructura_json(data_json['document'])
         
-        print("\n--- MAPA ESTRUCTURAL DEL OBJETO 'document' ---")
-        print(json.dumps(esquema_documento, indent=2))
-        print("---------------------------------------------\n")
+        # print("\n--- MAPA ESTRUCTURAL DEL OBJETO 'document' ---")
+        # print(json.dumps(esquema_documento, indent=2))
+        # print("---------------------------------------------\n")
+        logger.debug("--- MAPA ESTRUCTURAL DEL OBJETO 'document' ---")
+        logger.debug(json.dumps(esquema_documento, indent=2))
     else:
-        print("Error: La clave 'document' no se encontró en la respuesta JSON.")
+        # print("Error: La clave 'document' no se encontró en la respuesta JSON.")
+        logger.error("La clave 'document' no se encontró en la respuesta JSON.")
 
 import json
 from typing import Dict, Any, List
@@ -276,13 +342,14 @@ def inspeccionar_estructura_limpia(data_json: Dict[str, Any]):
     """
     
     if 'document' not in data_json:
-        print("Error: El JSON no contiene la clave 'document'.")
+        # print("Error: El JSON no contiene la clave 'document'.")
+        logger.error("El JSON no contiene la clave 'document'.")
         return
 
     # 1. Crear una copia profunda del diccionario 'document' para modificarlo sin afectar el original
     # Usamos json.loads(json.dumps()) para hacer una copia simple y profunda.
     document_copy = json.loads(json.dumps(data_json['document']))
-    
+
     # 2. Eliminar la cadena de texto larga del OCR ('text')
     if 'text' in document_copy:
         ocr_length = len(document_copy['text'])
@@ -307,9 +374,11 @@ def inspeccionar_estructura_limpia(data_json: Dict[str, Any]):
                 # del page['image'] 
     
     # 4. Imprimir el JSON restante con formato
-    print("\n--- ESTRUCTURA DEL DOCUMENTO (LIMPIA PARA INSPECCIÓN) ---")
-    print(json.dumps(document_copy, indent=2))
-    print("----------------------------------------------------------\n")
+    # print("\n--- ESTRUCTURA DEL DOCUMENTO (LIMPIA PARA INSPECCIÓN) ---")
+    # print(json.dumps(document_copy, indent=2))
+    # print("----------------------------------------------------------\n")
+    logger.debug("--- ESTRUCTURA DEL DOCUMENTO (LIMPIA PARA INSPECCIÓN) ---")
+    logger.debug(json.dumps(document_copy, indent=2))
 
 def obtener_estructura_limpia_para_fastapi(data_json: Dict[str, Any]) -> Dict[str, Any] | None:
     """
@@ -353,7 +422,8 @@ def unir_paginas_pdf_a_una_imagen(ruta_pdf, ruta_salida, resolucion_dpi=150):
     Convierte todas las páginas de un PDF y las une verticalmente en una sola imagen.
     """
     try:
-        print("Éste es el archivo que fitz quiere abrir", ruta_pdf)
+        # print("Éste es el archivo que fitz quiere abrir", ruta_pdf)
+        logger.debug(f"Éste es el archivo que fitz quiere abrir: {ruta_pdf}")
         documento = fitz.open(ruta_pdf)
         imagenes_pil = []
         alto_total = 0
@@ -364,7 +434,8 @@ def unir_paginas_pdf_a_una_imagen(ruta_pdf, ruta_salida, resolucion_dpi=150):
         matriz = fitz.Matrix(factor_zoom, factor_zoom)
         
         # 1. Renderizar cada página y guardarla temporalmente como objeto PIL Image
-        print(f"Renderizando {documento.page_count} páginas...")
+        # print(f"Renderizando {documento.page_count} páginas...")
+        logger.info(f"Renderizando {documento.page_count} páginas...")
         for num_pagina in range(documento.page_count):
             pagina = documento.load_page(num_pagina)
             pix = pagina.get_pixmap(matrix=matriz)
@@ -394,12 +465,15 @@ def unir_paginas_pdf_a_una_imagen(ruta_pdf, ruta_salida, resolucion_dpi=150):
         
         # 4. Guardar la imagen final
         imagen_final.save(ruta_salida)
-        print(f"\n✅ Documento unido y guardado en: {ruta_salida} (Resolución: {resolucion_dpi} DPI)")
+        # print(f"\n✅ Documento unido y guardado en: {ruta_salida} (Resolución: {resolucion_dpi} DPI)")
+        logger.info(f"✅ Documento unido y guardado en: {ruta_salida} (Resolución: {resolucion_dpi} DPI)")
 
     except FileNotFoundError:
-        print(f"❌ Error: El archivo PDF '{ruta_pdf}' no fue encontrado.")
+        # print(f"❌ Error: El archivo PDF '{ruta_pdf}' no fue encontrado.")
+        logger.error(f"❌ Error: El archivo PDF '{ruta_pdf}' no fue encontrado.")
     except Exception as e:
-        print(f"❌ Ocurrió un error inesperado: {e}")
+        # print(f"❌ Ocurrió un error inesperado: {e}")
+        logger.exception(f"❌ Ocurrió un error inesperado: {e}")
 
 import base64
 import os
@@ -420,9 +494,11 @@ def archivo_local_a_base64(ruta_archivo: str) -> str:
         # 3. Convertir los bytes Base64 a una cadena de texto y devolver
         base64_cadena = base64_bytes.decode('utf-8')
         
-        print(f"Archivo {os.path.basename(ruta_archivo)} codificado con éxito.")
+        # print(f"Archivo {os.path.basename(ruta_archivo)} codificado con éxito.")
+        logger.info(f"Archivo {os.path.basename(ruta_archivo)} codificado con éxito.")
         return base64_cadena
-        
+
     except FileNotFoundError:
-        print(f"Error: El archivo '{ruta_archivo}' no fue encontrado.")
+        # print(f"Error: El archivo '{ruta_archivo}' no fue encontrado.")
+        logger.error(f"El archivo '{ruta_archivo}' no fue encontrado.")
         return "" # O lanza una excepción, como vimos antes

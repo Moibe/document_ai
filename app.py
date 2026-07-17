@@ -1,4 +1,5 @@
 import os
+import logging
 import tempfile
 import funciones
 import herramientas
@@ -9,6 +10,10 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, status
 
 from dotenv import load_dotenv
 load_dotenv()
+
+from logging_config import configurar_logging
+configurar_logging()
+logger = logging.getLogger(__name__)
 
 TEMP_DIR_ROOT = Path("/home/mbriseno/code/document_ai/temp_files")
 
@@ -98,12 +103,14 @@ async def procesa_documento_csf(pdf_file: UploadFile = File(...)):
         )
 
         if not os.path.exists(temp_image_path) or os.path.getsize(temp_image_path) == 0:
-            print("FATAL: La imagen de salida no existe o está vacía después de la unión.")
+            # print("FATAL: La imagen de salida no existe o está vacía después de la unión.")
+            logger.error("FATAL: La imagen de salida no existe o está vacía después de la unión.")
             # Lanza una excepción interna, no de HTTP, para un mejor debug
             raise RuntimeError("Falló al generar la imagen unida del PDF.")
 
-        print(f"PDF unido y guardado temporalmente como {os.path.basename(temp_image_path)}.")
-        
+        # print(f"PDF unido y guardado temporalmente como {os.path.basename(temp_image_path)}.")
+        logger.info(f"PDF unido y guardado temporalmente como {os.path.basename(temp_image_path)}.")
+
         return await funciones.procesa_csf(temp_image_path)
 
     except HTTPException:
@@ -111,7 +118,8 @@ async def procesa_documento_csf(pdf_file: UploadFile = File(...)):
         raise
 
     except Exception as e:
-        print(f"Error procesando el PDF: {e}")
+        # print(f"Error procesando el PDF: {e}")
+        logger.exception(f"Error procesando el PDF: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error interno al procesar el PDF."
