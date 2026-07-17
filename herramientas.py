@@ -221,6 +221,23 @@ def obtener_datos_completos(data_json: Dict[str, Any]) -> Dict[str, Any]:
         logger.error(f"No se pudo encontrar el nodo 'document' o 'entities'. Error: {e}")
         return {}
 
+
+def limpiar_campos_ine(entidades: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Limpia artefactos de puntuación que el OCR deja en ciertos campos de la INE
+    dentro de 'domicilio': el estado trae un punto final (ej. 'SON.') y la
+    localidad trae una coma final (ej. 'HUATABAMPO,'), heredados de cómo vienen
+    impresos en el renglón del domicilio en la credencial.
+    """
+    domicilio = entidades.get('domicilio')
+    if isinstance(domicilio, dict):
+        if isinstance(domicilio.get('estado'), str):
+            domicilio['estado'] = domicilio['estado'].rstrip('.').strip()
+        if isinstance(domicilio.get('localidad'), str):
+            domicilio['localidad'] = domicilio['localidad'].rstrip(',').strip()
+
+    return entidades
+
 def inspeccionar_respuesta_sin_base64(data_json: Dict[str, Any]):
     """
     Imprime el contenido completo del nodo 'document', excluyendo la cadena Base64

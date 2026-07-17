@@ -143,6 +143,8 @@ async def procesa_documento(
     try:
         data_json = response.json()
         entidades = herramientas.obtener_datos_completos(data_json)
+        if doc_type == "ine":
+            entidades = herramientas.limpiar_campos_ine(entidades)
         return entidades
     except Exception as e:
         # print(f"Error al procesar respuesta: {e}")
