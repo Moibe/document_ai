@@ -168,23 +168,29 @@ def obtener_valor_normalizado(entidad: Dict[str, Any]):
     return entidad.get('mentionText')
 
 
-def extraer_entidades_anidadas(entidades: List[Dict[str, Any]]) -> Dict[str, Any]:
+def extraer_entidades_anidadas(entidades: List[Dict[str, Any]], conservar_primero: bool = False) -> Dict[str, Any]:
     """
     Función recursiva que convierte las entidades de Document AI en un diccionario,
     CONSERVANDO la jerarquía: las entidades con sub-propiedades (ej. 'domicilio')
     se devuelven como un sub-diccionario anidado, evitando colisiones de llaves
     con entidades del nivel raíz (ej. 'estado' y 'localidad').
+
+    Cuando un tipo aparece varias veces se conserva la ÚLTIMA aparición, salvo con
+    `conservar_primero`: en un PDF con varios documentos (ej. INE + credencial
+    escolar) las entidades vienen en orden de página, así que la primera es la de
+    la INE. Las repeticiones se reportan aparte con `contar_repetidos` para que la
+    respuesta pueda avisar en vez de mezclar datos de dos personas en silencio.
     """
     resultado = {}
 
     for entidad in entidades:
         nombre_campo = entidad.get('type')
-        if not nombre_campo:
+        if not nombre_campo or (conservar_primero and nombre_campo in resultado):
             continue
 
         if entidad.get('properties'):
             # Entidad padre (ej. 'domicilio'): anidar sus sub-entidades
-            resultado[nombre_campo] = extraer_entidades_anidadas(entidad['properties'])
+            resultado[nombre_campo] = extraer_entidades_anidadas(entidad['properties'], conservar_primero)
         else:
             valor = obtener_valor_normalizado(entidad)
             if valor is not None:
@@ -193,7 +199,20 @@ def extraer_entidades_anidadas(entidades: List[Dict[str, Any]]) -> Dict[str, Any
     return resultado
 
 
-def obtener_datos_completos(data_json: Dict[str, Any]) -> Dict[str, Any]:
+def contar_repetidos(data_json: Dict[str, Any]) -> Dict[str, int]:
+    """
+    Tipos de entidad que Document AI devolvió más de una vez en el mismo documento.
+    Señal de que el PDF trae más de un documento y de que hay datos descartados.
+    """
+    conteo: Dict[str, int] = {}
+    for entidad in data_json.get('document', {}).get('entities', []):
+        tipo = entidad.get('type')
+        if tipo:
+            conteo[tipo] = conteo.get(tipo, 0) + 1
+    return {tipo: n for tipo, n in conteo.items() if n > 1}
+
+
+def obtener_datos_completos(data_json: Dict[str, Any], conservar_primero: bool = False) -> Dict[str, Any]:
     """
     Función de entrada que toma la respuesta completa de Document AI y
     devuelve un diccionario con todas las entidades: anidado donde el documento
@@ -205,7 +224,7 @@ def obtener_datos_completos(data_json: Dict[str, Any]) -> Dict[str, Any]:
         entidades_raiz = data_json['document']['entities']
 
         # 2. Llamar a la función recursiva (conserva anidación y normaliza valores)
-        datos_finales = extraer_entidades_anidadas(entidades_raiz)
+        datos_finales = extraer_entidades_anidadas(entidades_raiz, conservar_primero)
 
         # 3. Imprimir el resultado completo
         # print("--- Datos del Documento (Anidado + Normalizado) ---")
@@ -221,22 +240,6 @@ def obtener_datos_completos(data_json: Dict[str, Any]) -> Dict[str, Any]:
         logger.error(f"No se pudo encontrar el nodo 'document' o 'entities'. Error: {e}")
         return {}
 
-
-def limpiar_campos_ine(entidades: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Limpia artefactos de puntuación que el OCR deja en ciertos campos de la INE
-    dentro de 'domicilio': el estado trae un punto final (ej. 'SON.') y la
-    localidad trae una coma final (ej. 'HUATABAMPO,'), heredados de cómo vienen
-    impresos en el renglón del domicilio en la credencial.
-    """
-    domicilio = entidades.get('domicilio')
-    if isinstance(domicilio, dict):
-        if isinstance(domicilio.get('estado'), str):
-            domicilio['estado'] = domicilio['estado'].rstrip('.').strip()
-        if isinstance(domicilio.get('localidad'), str):
-            domicilio['localidad'] = domicilio['localidad'].rstrip(',').strip()
-
-    return entidades
 
 def inspeccionar_respuesta_sin_base64(data_json: Dict[str, Any]):
     """

@@ -1,12 +1,15 @@
 import os
 import logging
 import tempfile
+import archivo
+import clasificador
+import codigos
 import funciones
 import herramientas
 from io import BytesIO
 from pathlib import Path
 from fastapi.responses import StreamingResponse, JSONResponse
-from fastapi import FastAPI, File, UploadFile, HTTPException, status
+from fastapi import FastAPI, File, Request, UploadFile, HTTPException, status
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -22,6 +25,14 @@ app = FastAPI(
     description="Reconocimiento avanzado de documentos via computer vision.",
     version="0.0.0"
 )
+
+@app.exception_handler(codigos.ErrorAPI)
+async def _error_api(request: Request, exc: codigos.ErrorAPI):
+    """Las fallas de /procesa_ine/ se reportan con la misma forma que los éxitos."""
+    return JSONResponse(
+        status_code=exc.desenlace.http,
+        content=codigos.cuerpo(exc.desenlace, exc.mensaje),
+    )
 
 # Nuevo endpoint para Health Check
 @app.get("/health",
@@ -149,19 +160,55 @@ async def procesa_documento(pdf_file: UploadFile = File(...)):
     
     return await funciones.procesa_cedula(pdf_file)
 
+async def _revisar_y_clasificar_ine(file: UploadFile):
+    """Guardias previas a la extracción de la INE.
+
+    Devuelve (contenido, veredicto) si el documento debe procesarse, o
+    (None, respuesta) con el desenlace que corta la petición.
+    """
+    permitidos = funciones.MIME_TYPES_PERMITIDOS_INE
+    if not file.content_type or file.content_type not in permitidos:
+        raise codigos.ErrorAPI(
+            codigos.ARCHIVO_NO_SOPORTADO,
+            f"Tipo de archivo no soportado: {file.content_type or 'desconocido'}. "
+            f"Permitidos: {', '.join(permitidos)}.",
+        )
+
+    # Se lee una sola vez: el UploadFile es un stream y el clasificador y el
+    # extractor necesitan los mismos bytes.
+    contenido = await file.read()
+
+    # Se revisa el archivo ANTES de mandarlo: distinguir "tiene contraseña" de
+    # "está dañado" solo se puede aquí (Document AI mete ambos en el mismo
+    # mensaje), y de paso se ahorra una llamada que se cobra por página.
+    archivo.revisar(contenido, file.content_type)
+
+    veredicto = await clasificador.clasificar(contenido, file.content_type)
+    if clasificador.es_categoria(veredicto, clasificador.CATEGORIA_INE):
+        return contenido, veredicto
+
+    if veredicto.get("categoria") == clasificador.CATEGORIA_BLANCO:
+        desenlace = codigos.HOJA_EN_BLANCO
+    else:
+        desenlace = codigos.NO_ES_INE
+    logger.info(f"Documento no procesado: {desenlace.estado}")
+    return None, codigos.cuerpo(desenlace, clasificacion=veredicto)
+
 @app.post(
         "/procesa_ine/", 
         tags=["Documentos"],       
         summary="INE")
 async def procesa_documento_ine(image: UploadFile = File(...)):
     """
-    Recibe una imagen JPG de la INE y la envía a la función de procesamiento.
+    Recibe una INE en PDF o imagen y devuelve sus datos.
+
+    Toda respuesta abre con `codigo`, `estado` y `mensaje`, que dicen qué pasó.
+    El status HTTP queda para lo que es de transporte: un documento que resulta
+    no ser una INE responde 200, porque la API hizo su trabajo — el resultado de
+    ese trabajo fue que el documento no era del tipo esperado.
     """
-    
-    if not image.content_type or not (image.content_type.startswith("image/")):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El archivo no es una imagen. Por favor, suba un archivo con Content-Type: image/* (ej: image/jpeg)."
-        )
-    
-    return await funciones.procesa_ine(image)
+    contenido, resto = await _revisar_y_clasificar_ine(image)
+    if contenido is None:
+        return resto
+    respuesta = await funciones.procesa_ine(contenido, image.content_type, resto)
+    return codigos.cuerpo(codigos.de_extraccion(respuesta), **respuesta)
