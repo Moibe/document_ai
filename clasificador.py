@@ -35,10 +35,10 @@ PADRE = f"projects/{PROJECT_ID}/locations/{LOCATION}"
 # requestId y `processors.list` no filtra, así que dos ejecuciones de la
 # sincronización crearían dos procesadores; buscar por este nombre exacto antes
 # de crear hace que la segunda adopte el de la primera.
-DISPLAY_NAME = "santander_ine_clasificador"
+DISPLAY_NAME = "rad_clasificador"
 
 # Se llena tras correr `python crear_clasificador.py`.
-CLASIFICADOR_ID = "d00e2f8bb0876d4a"
+CLASIFICADOR_ID = "d33e91980dac1106"
 
 # Versión fijada a propósito: sin esto Google puede promover otra versión por
 # default sin aviso y cambiar el comportamiento del endpoint de un día a otro.
@@ -102,7 +102,7 @@ def esquema() -> Dict[str, Any]:
     siguiente. Aquí se describe de forma neutra, por eso.
     """
     return {
-        "displayName": "Clasificador de documentos Santander",
+        "displayName": "Clasificador de documentos RAD",
         "description": "Distingue que tipo de documento de identidad es el que entra.",
         "metadata": {"documentSplitter": False},
         "entityTypes": [
