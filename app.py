@@ -163,8 +163,8 @@ async def procesa_documento(pdf_file: UploadFile = File(...)):
 async def _revisar_y_clasificar_ine(file: UploadFile):
     """Guardias previas a la extracción de la INE.
 
-    Devuelve (contenido, veredicto) si el documento debe procesarse, o
-    (None, respuesta) con el desenlace que corta la petición.
+    Devuelve (contenido, tipo_mime, veredicto) si el documento debe procesarse, o
+    (None, None, respuesta) con el desenlace que corta la petición.
     """
     permitidos = funciones.MIME_TYPES_PERMITIDOS_INE
     if not file.content_type or file.content_type not in permitidos:
@@ -181,18 +181,28 @@ async def _revisar_y_clasificar_ine(file: UploadFile):
     # Se revisa el archivo ANTES de mandarlo: distinguir "tiene contraseña" de
     # "está dañado" solo se puede aquí (Document AI mete ambos en el mismo
     # mensaje), y de paso se ahorra una llamada que se cobra por página.
-    archivo.revisar(contenido, file.content_type)
+    #
+    # El tipo que cuenta es el que dicen los bytes, no el que declara el cliente:
+    # hay clientes que suben un PNG como image/jpeg (la versión anterior de este
+    # endpoint mandaba siempre image/jpeg a Document AI y nadie lo notaba). Si el
+    # contenido es de un tipo aceptado se usa ese; la discrepancia solo se
+    # rechaza cuando el contenido no se reconoce (ver archivo.revisar).
+    real = archivo.detectar_tipo(contenido)
+    mime = real if real in permitidos else file.content_type
+    if mime != file.content_type:
+        logger.warning(f"El cliente declaró {file.content_type} pero el contenido es {mime}; se usa {mime}.")
+    archivo.revisar(contenido, mime)
 
-    veredicto = await clasificador.clasificar(contenido, file.content_type)
+    veredicto = await clasificador.clasificar(contenido, mime)
     if clasificador.es_categoria(veredicto, clasificador.CATEGORIA_INE):
-        return contenido, veredicto
+        return contenido, mime, veredicto
 
     if veredicto.get("categoria") == clasificador.CATEGORIA_BLANCO:
         desenlace = codigos.HOJA_EN_BLANCO
     else:
         desenlace = codigos.NO_ES_INE
     logger.info(f"Documento no procesado: {desenlace.estado}")
-    return None, codigos.cuerpo(desenlace, clasificacion=veredicto)
+    return None, None, codigos.cuerpo(desenlace, clasificacion=veredicto)
 
 @app.post(
         "/procesa_ine/", 
@@ -207,8 +217,8 @@ async def procesa_documento_ine(image: UploadFile = File(...)):
     no ser una INE responde 200, porque la API hizo su trabajo — el resultado de
     ese trabajo fue que el documento no era del tipo esperado.
     """
-    contenido, resto = await _revisar_y_clasificar_ine(image)
+    contenido, mime, resto = await _revisar_y_clasificar_ine(image)
     if contenido is None:
         return resto
-    respuesta = await funciones.procesa_ine(contenido, image.content_type, resto)
+    respuesta = await funciones.procesa_ine(contenido, mime, resto)
     return codigos.cuerpo(codigos.de_extraccion(respuesta), **respuesta)
