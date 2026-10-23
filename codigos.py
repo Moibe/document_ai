@@ -87,6 +87,10 @@ NO_ES_PASAPORTE = Desenlace(
     225, "NO_ES_PASAPORTE",
     "El documento no es un pasaporte. No se extrajo ningun dato.")
 
+NO_ES_CEDULA_PANAMA = Desenlace(
+    226, "NO_ES_CEDULA_PANAMA",
+    "El documento no es una cédula de identidad panameña. No se extrajo ningún dato.")
+
 LIMITE_PAGINAS = Desenlace(
     224, "LIMITE_PAGINAS",
     "El documento tiene más páginas de las que se pueden procesar en una sola "
@@ -100,7 +104,7 @@ ARCHIVO_NO_SOPORTADO = Desenlace(
 
 PETICION_INVALIDA = Desenlace(
     422, "PETICION_INVALIDA",
-    "La petición no es válida. Se espera multipart/form-data con un campo 'image'.", 422)
+    "La petición no es válida. Se espera multipart/form-data con un campo de archivo.", 422)
 
 ERROR_INTERNO = Desenlace(
     500, "ERROR_INTERNO",
@@ -174,7 +178,7 @@ def cuerpo(desenlace: Desenlace, mensaje: Optional[str] = None,
 TODOS = (
     PROCESADO, PROCESADO_CON_DISCREPANCIAS, PROCESADO_CON_AVISOS,
     PROCESADO_INCOMPLETO, NO_ES_INE, HOJA_EN_BLANCO,
-    ARCHIVO_CORRUPTO, PDF_PROTEGIDO, LIMITE_PAGINAS, NO_ES_PASAPORTE,
+    ARCHIVO_CORRUPTO, PDF_PROTEGIDO, LIMITE_PAGINAS, NO_ES_PASAPORTE, NO_ES_CEDULA_PANAMA,
     ARCHIVO_NO_SOPORTADO, PETICION_INVALIDA, CUOTA_EXCEDIDA,
     ERROR_INTERNO, ERROR_DOCUMENT_AI, SIN_CREDENCIALES,
 )

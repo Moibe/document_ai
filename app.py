@@ -160,13 +160,14 @@ async def procesa_documento(pdf_file: UploadFile = File(...)):
     
     return await funciones.procesa_cedula(pdf_file)
 
-async def _revisar_y_clasificar_ine(file: UploadFile):
-    """Guardias previas a la extracción de la INE.
+async def _revisar_y_clasificar(file: UploadFile, categoria: str, no_es):
+    """Guardias previas a la extracción de un documento: `categoria` es la que debe
+    decir el clasificador y `no_es` el desenlace con que se corta si dice otra cosa.
 
     Devuelve (contenido, tipo_mime, veredicto) si el documento debe procesarse, o
     (None, None, respuesta) con el desenlace que corta la petición.
     """
-    permitidos = funciones.MIME_TYPES_PERMITIDOS_INE
+    permitidos = funciones.MIME_TYPES_PERMITIDOS
     if not file.content_type or file.content_type not in permitidos:
         raise codigos.ErrorAPI(
             codigos.ARCHIVO_NO_SOPORTADO,
@@ -194,13 +195,13 @@ async def _revisar_y_clasificar_ine(file: UploadFile):
     archivo.revisar(contenido, mime)
 
     veredicto = await clasificador.clasificar(contenido, mime)
-    if clasificador.es_categoria(veredicto, clasificador.CATEGORIA_INE):
+    if clasificador.es_categoria(veredicto, categoria):
         return contenido, mime, veredicto
 
     if veredicto.get("categoria") == clasificador.CATEGORIA_BLANCO:
         desenlace = codigos.HOJA_EN_BLANCO
     else:
-        desenlace = codigos.NO_ES_INE
+        desenlace = no_es
     logger.info(f"Documento no procesado: {desenlace.estado}")
     return None, None, codigos.cuerpo(desenlace, clasificacion=veredicto)
 
@@ -217,8 +218,30 @@ async def procesa_documento_ine(image: UploadFile = File(...)):
     no ser una INE responde 200, porque la API hizo su trabajo — el resultado de
     ese trabajo fue que el documento no era del tipo esperado.
     """
-    contenido, mime, resto = await _revisar_y_clasificar_ine(image)
+    contenido, mime, resto = await _revisar_y_clasificar(
+        image, clasificador.CATEGORIA_INE, codigos.NO_ES_INE)
     if contenido is None:
         return resto
     respuesta = await funciones.procesa_ine(contenido, mime, resto)
+    return codigos.cuerpo(codigos.de_extraccion(respuesta), **respuesta)
+
+
+@app.post(
+        "/procesa_cedula_panama/",
+        tags=["Documentos"],
+        summary="Cédula de Panamá")
+async def procesa_documento_cedula_panama(image: UploadFile = File(...)):
+    """
+    Recibe una cédula de identidad panameña en PDF o imagen y devuelve sus datos.
+
+    Misma forma de respuesta que /procesa_ine/: el desenlace en `codigo`, `estado`
+    y `mensaje`, los datos del anverso en `frente`, el bloque `validacion` y los
+    `avisos`. La cédula no trae MRZ, así que la validación revisa la forma del
+    número, la coherencia de las fechas y la vigencia.
+    """
+    contenido, mime, resto = await _revisar_y_clasificar(
+        image, clasificador.CATEGORIA_CEDULA_PANAMA, codigos.NO_ES_CEDULA_PANAMA)
+    if contenido is None:
+        return resto
+    respuesta = await funciones.procesa_cedula_panama(contenido, mime, resto)
     return codigos.cuerpo(codigos.de_extraccion(respuesta), **respuesta)

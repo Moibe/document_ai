@@ -46,6 +46,7 @@ VERSION = "pretrained-classifier-v1.5-2025-08-05"
 
 CATEGORIA_INE = "ine"
 CATEGORIA_PASAPORTE = "pasaporte"
+CATEGORIA_CEDULA_PANAMA = "cedula_panama"
 CATEGORIA_OTRO = "otro"
 
 # Categoría DERIVADA EN CÓDIGO, no del modelo. Se intentó agregarla al esquema
@@ -134,12 +135,26 @@ def esquema() -> Dict[str, Any]:
                 ),
             },
             {
+                "name": CATEGORIA_CEDULA_PANAMA,
+                "displayName": "Cédula de identidad de Panamá",
+                "baseTypes": ["document"],
+                "description": (
+                    "Cédula de identidad personal de la República de Panamá, expedida por "
+                    "el Tribunal Electoral. Trae la leyenda REPÚBLICA DE PANAMÁ con "
+                    "TRIBUNAL ELECTORAL o DOCUMENTO DE IDENTIDAD, la fotografía del "
+                    "titular, el nombre en dos renglones, un número con guiones como "
+                    "8-847-1152, fecha y lugar de nacimiento, sexo, tipo de sangre y las "
+                    "fechas de expedición y expiración. Cuenta como esta categoría aunque "
+                    "sea una fotografía hecha con celular, una fotocopia o un escaneo."
+                ),
+            },
+            {
                 "name": CATEGORIA_OTRO,
                 "displayName": "Otro documento",
                 "baseTypes": ["document"],
                 "description": (
-                    "Documento que no es una credencial para votar: pasaporte, licencia "
-                    "de conducir, cédula profesional, comprobante de domicilio, estado "
+                    "Documento que no es una credencial para votar ni una cédula "
+                    "panameña: pasaporte, licencia de conducir, cédula profesional, comprobante de domicilio, estado "
                     "de cuenta, acta, formato bancario, o cualquier otra cosa."
                 ),
             },

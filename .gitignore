@@ -4,3 +4,4 @@ __pycache__/
 *.png
 *.env
 documentai_sa.json
+/muestras/

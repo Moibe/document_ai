@@ -4,6 +4,7 @@ import logging
 import re
 import httpx
 import ine
+import cedula_panama
 import codigos
 import herramientas
 from fastapi import UploadFile, HTTPException, status
@@ -22,6 +23,7 @@ ENDPOINTS = {
     "csf": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/339fc7810b01699b:process",  # Endpoint Sat CSF
     "cedula": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/2da02220d55dabf1/processorVersions/pretrained-foundation-model-v1.5-pro-2025-06-20:process",  # Endpoint Cédula Profesional
     "ine": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/bf35151f51b51521:process",  # Endpoint INE
+    "cedula_panama": f"https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/{cedula_panama.PROCESSOR_ID}/processorVersions/{cedula_panama.VERSION}:process",  # Processor "unify_cedula_panama"
 }
 
 # Mapeo de MIME types por tipo de documento
@@ -32,8 +34,9 @@ MIME_TYPES = {
     "cedula": "application/pdf",   # PDF
 }
 
-# La INE acepta PDF e imagen: se manda a Document AI el MIME real del archivo.
-MIME_TYPES_PERMITIDOS_INE = ("application/pdf", "image/jpeg", "image/png", "image/tiff", "image/webp")
+# La INE y la cédula panameña aceptan PDF e imagen: se manda a Document AI el MIME
+# real del archivo.
+MIME_TYPES_PERMITIDOS = ("application/pdf", "image/jpeg", "image/png", "image/tiff", "image/webp")
 
 # Variables legadas para compatibilidad
 ENDPOINT_URL = ENDPOINTS["pasaporte"]
@@ -270,22 +273,30 @@ def _a_esquema_ine(entidades: dict) -> dict:
     return traducido
 
 
-async def procesa_ine(contenido: bytes, mime_type: str, clasificacion: Optional[dict] = None):
+# Cómo se arma la respuesta de cada documento con el flujo nuevo (validación
+# cruzada y desenlaces en `codigos`). Cada armador recibe las entidades planas.
+ARMADORES = {
+    "ine": lambda entidades, **kw: ine.armar_respuesta(_a_esquema_ine(entidades), **kw),
+    "cedula_panama": cedula_panama.armar_respuesta,
+}
+
+
+async def _procesa(contenido: bytes, mime_type: str, doc_type: str, clasificacion: Optional[dict] = None):
     """
-    Procesa una INE (PDF o imagen) con Document AI y arma la respuesta con
-    validación cruzada (ver ine.py).
+    Procesa un documento (PDF o imagen) con Document AI y arma su respuesta con
+    validación cruzada.
 
     Recibe los bytes ya leídos y no el UploadFile: el endpoint tiene que leer el
     stream antes para pasárselo también al clasificador, y solo se puede leer
     una vez. Las fallas se lanzan como `codigos.ErrorAPI`.
     """
-    endpoint_url = ENDPOINTS["ine"]
+    endpoint_url = ENDPOINTS[doc_type]
 
     try:
         credentials, _ = default(scopes=SCOPES)
         credentials.refresh(Request())
         access_token = credentials.token
-        logger.info("Access token obtenido para ine")
+        logger.info(f"Access token obtenido para {doc_type}")
     except Exception as e:
         logger.exception(f"Error al obtener credenciales de Google: {e}")
         raise codigos.ErrorAPI(
@@ -331,13 +342,12 @@ async def procesa_ine(contenido: bytes, mime_type: str, clasificacion: Optional[
             f"Error al comunicarse con Document AI: {e}",
         )
 
-    logger.info("Respuesta recibida para ine")
+    logger.info(f"Respuesta recibida para {doc_type}")
 
     try:
         data_json = response.json()
-        entidades = _a_esquema_ine(
-            herramientas.obtener_datos_completos(data_json, conservar_primero=True))
-        respuesta = ine.armar_respuesta(
+        entidades = herramientas.obtener_datos_completos(data_json, conservar_primero=True)
+        respuesta = ARMADORES[doc_type](
             entidades,
             repetidos=herramientas.contar_repetidos(data_json),
             texto_ocr=data_json.get("document", {}).get("text", ""),
@@ -351,3 +361,13 @@ async def procesa_ine(contenido: bytes, mime_type: str, clasificacion: Optional[
             codigos.ERROR_DOCUMENT_AI,
             f"Error al procesar la respuesta de Document AI: {e}",
         )
+
+
+async def procesa_ine(contenido: bytes, mime_type: str, clasificacion: Optional[dict] = None):
+    """Procesa una INE (PDF o imagen)."""
+    return await _procesa(contenido, mime_type, "ine", clasificacion)
+
+
+async def procesa_cedula_panama(contenido: bytes, mime_type: str, clasificacion: Optional[dict] = None):
+    """Procesa una cédula de identidad panameña (PDF o imagen)."""
+    return await _procesa(contenido, mime_type, "cedula_panama", clasificacion)
