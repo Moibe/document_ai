@@ -10,6 +10,7 @@ import herramientas
 from io import BytesIO
 from pathlib import Path
 from typing import Optional, Union
+from starlette.datastructures import UploadFile as ArchivoSubido
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi import FastAPI, File, Request, UploadFile, HTTPException, status
 
@@ -235,8 +236,10 @@ async def procesa_documento_ine(image: UploadFile = File(...),
     ese trabajo fue que el documento no era del tipo esperado.
     """
     # Un cliente que no tiene reverso a veces manda el campo vacío (como texto, o
-    # como archivo sin nombre); es lo mismo que no mandarlo.
-    if not isinstance(atras, UploadFile) or not atras.filename:
+    # como archivo sin nombre); es lo mismo que no mandarlo. Ojo: el archivo que
+    # llega es un UploadFile de starlette, no el de fastapi (que solo lo hereda),
+    # así que `isinstance` con el de fastapi lo descartaba SIEMPRE.
+    if not isinstance(atras, ArchivoSubido) or not atras.filename:
         atras = None
 
     if atras is None:
