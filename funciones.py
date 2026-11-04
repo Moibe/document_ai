@@ -1,15 +1,17 @@
+import asyncio
 import base64
 import json
 import logging
 import re
 import httpx
 import ine
+import ine_atras
 import cedula_panama
 import codigos
 import herramientas
 from fastapi import UploadFile, HTTPException, status
 from google.auth import default
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
 from google.auth.transport.requests import Request
 
 logger = logging.getLogger(__name__)
@@ -281,10 +283,9 @@ ARMADORES = {
 }
 
 
-async def _procesa(contenido: bytes, mime_type: str, doc_type: str, clasificacion: Optional[dict] = None):
+async def _llama_document_ai(contenido: bytes, mime_type: str, doc_type: str) -> dict:
     """
-    Procesa un documento (PDF o imagen) con Document AI y arma su respuesta con
-    validación cruzada.
+    Manda el documento al processor de `doc_type` y devuelve el JSON de Document AI.
 
     Recibe los bytes ya leídos y no el UploadFile: el endpoint tiene que leer el
     stream antes para pasárselo también al clasificador, y solo se puede leer
@@ -345,13 +346,52 @@ async def _procesa(contenido: bytes, mime_type: str, doc_type: str, clasificacio
     logger.info(f"Respuesta recibida para {doc_type}")
 
     try:
-        data_json = response.json()
+        return response.json()
+    except Exception as e:
+        logger.exception(f"Error al procesar respuesta: {e}")
+        raise codigos.ErrorAPI(
+            codigos.ERROR_DOCUMENT_AI,
+            f"Error al procesar la respuesta de Document AI: {e}",
+        )
+
+
+def _texto(data_json: dict) -> str:
+    return data_json.get("document", {}).get("text", "")
+
+
+async def _procesa(contenido: bytes, mime_type: str, doc_type: str,
+                   clasificacion: Optional[dict] = None,
+                   atras: Optional[Tuple[bytes, str]] = None):
+    """
+    Procesa un documento (PDF o imagen) con Document AI y arma su respuesta con
+    validación cruzada.
+
+    `atras` es el reverso (bytes y tipo MIME) cuando el cliente lo manda en un
+    archivo aparte: se lee en paralelo y su texto se suma al del anverso, de modo
+    que la MRZ se localiza igual que cuando las dos caras vienen en un solo PDF y
+    el anverso se contrasta contra ella.
+    """
+    if atras is None:
+        data_json = await _llama_document_ai(contenido, mime_type, doc_type)
+        texto = _texto(data_json)
+    else:
+        data_json, data_atras = await asyncio.gather(
+            _llama_document_ai(contenido, mime_type, doc_type),
+            _llama_document_ai(atras[0], atras[1], doc_type),
+        )
+        texto = f"{_texto(data_json)}\n{_texto(data_atras)}"
+
+    try:
         entidades = herramientas.obtener_datos_completos(data_json, conservar_primero=True)
         respuesta = ARMADORES[doc_type](
             entidades,
             repetidos=herramientas.contar_repetidos(data_json),
-            texto_ocr=data_json.get("document", {}).get("text", ""),
+            texto_ocr=texto,
         )
+        if atras is not None and not respuesta.get("atras"):
+            respuesta["avisos"].append(
+                "el archivo 'atras' no trae una MRZ legible: no se pudo contrastar "
+                "el anverso contra el reverso")
         if clasificacion:
             respuesta["clasificacion"] = clasificacion
         return respuesta
@@ -363,9 +403,32 @@ async def _procesa(contenido: bytes, mime_type: str, doc_type: str, clasificacio
         )
 
 
-async def procesa_ine(contenido: bytes, mime_type: str, clasificacion: Optional[dict] = None):
-    """Procesa una INE (PDF o imagen)."""
-    return await _procesa(contenido, mime_type, "ine", clasificacion)
+async def procesa_ine(contenido: bytes, mime_type: str, clasificacion: Optional[dict] = None,
+                      atras: Optional[Tuple[bytes, str]] = None):
+    """Procesa una INE (PDF o imagen), con su reverso aparte si el cliente lo manda."""
+    return await _procesa(contenido, mime_type, "ine", clasificacion, atras)
+
+
+async def procesa_ine_atras(contenido: bytes, mime_type: str, clasificacion: Optional[dict] = None):
+    """
+    Procesa solo el reverso de una INE (PDF o imagen). Devuelve None si el
+    archivo no trae ninguna MRZ.
+
+    Se usa el processor de la INE solo para leer el texto: la MRZ no sale de
+    ninguna entidad sino del OCR (ver `ine_atras`).
+    """
+    data_json = await _llama_document_ai(contenido, mime_type, "ine")
+    try:
+        respuesta = ine_atras.armar_respuesta(_texto(data_json))
+    except Exception as e:
+        logger.exception(f"Error al procesar respuesta: {e}")
+        raise codigos.ErrorAPI(
+            codigos.ERROR_DOCUMENT_AI,
+            f"Error al procesar la respuesta de Document AI: {e}",
+        )
+    if respuesta is not None and clasificacion:
+        respuesta["clasificacion"] = clasificacion
+    return respuesta
 
 
 async def procesa_cedula_panama(contenido: bytes, mime_type: str, clasificacion: Optional[dict] = None):

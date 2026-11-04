@@ -1,4 +1,5 @@
 import os
+import asyncio
 import logging
 import tempfile
 import archivo
@@ -8,6 +9,7 @@ import funciones
 import herramientas
 from io import BytesIO
 from pathlib import Path
+from typing import Optional, Union
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi import FastAPI, File, Request, UploadFile, HTTPException, status
 
@@ -160,19 +162,24 @@ async def procesa_documento(pdf_file: UploadFile = File(...)):
     
     return await funciones.procesa_cedula(pdf_file)
 
-async def _revisar_y_clasificar(file: UploadFile, categoria: str, no_es):
+async def _revisar_y_clasificar(file: UploadFile, categoria: str, no_es, campo: Optional[str] = None):
     """Guardias previas a la extracción de un documento: `categoria` es la que debe
     decir el clasificador y `no_es` el desenlace con que se corta si dice otra cosa.
+    `campo` es el nombre del archivo en la petición cuando llegan dos, para que los
+    mensajes digan de cuál hablan.
 
     Devuelve (contenido, tipo_mime, veredicto) si el documento debe procesarse, o
     (None, None, respuesta) con el desenlace que corta la petición.
     """
+    def decir(mensaje: str) -> str:
+        return f"Archivo '{campo}': {mensaje}" if campo else mensaje
+
     permitidos = funciones.MIME_TYPES_PERMITIDOS
     if not file.content_type or file.content_type not in permitidos:
         raise codigos.ErrorAPI(
             codigos.ARCHIVO_NO_SOPORTADO,
-            f"Tipo de archivo no soportado: {file.content_type or 'desconocido'}. "
-            f"Permitidos: {', '.join(permitidos)}.",
+            decir(f"Tipo de archivo no soportado: {file.content_type or 'desconocido'}. "
+                  f"Permitidos: {', '.join(permitidos)}."),
         )
 
     # Se lee una sola vez: el UploadFile es un stream y el clasificador y el
@@ -192,7 +199,10 @@ async def _revisar_y_clasificar(file: UploadFile, categoria: str, no_es):
     mime = real if real in permitidos else file.content_type
     if mime != file.content_type:
         logger.warning(f"El cliente declaró {file.content_type} pero el contenido es {mime}; se usa {mime}.")
-    archivo.revisar(contenido, mime)
+    try:
+        archivo.revisar(contenido, mime)
+    except codigos.ErrorAPI as e:
+        raise codigos.ErrorAPI(e.desenlace, decir(e.mensaje))
 
     veredicto = await clasificador.clasificar(contenido, mime)
     if clasificador.es_categoria(veredicto, categoria):
@@ -203,26 +213,76 @@ async def _revisar_y_clasificar(file: UploadFile, categoria: str, no_es):
     else:
         desenlace = no_es
     logger.info(f"Documento no procesado: {desenlace.estado}")
-    return None, None, codigos.cuerpo(desenlace, clasificacion=veredicto)
+    return None, None, codigos.cuerpo(desenlace, decir(desenlace.mensaje), clasificacion=veredicto)
 
 @app.post(
         "/procesa_ine/", 
         tags=["Documentos"],       
         summary="INE")
-async def procesa_documento_ine(image: UploadFile = File(...)):
+async def procesa_documento_ine(image: UploadFile = File(...),
+                                atras: Union[UploadFile, str, None] = File(None)):
     """
     Recibe una INE en PDF o imagen y devuelve sus datos.
+
+    El reverso se puede mandar en el mismo archivo o aparte en el campo opcional
+    `atras`. Con `atras`, la MRZ del reverso se contrasta contra el anverso, que
+    es la comprobación que caza errores de lectura; sin ella, esa parte de la
+    validación queda en `sin_verificar`.
 
     Toda respuesta abre con `codigo`, `estado` y `mensaje`, que dicen qué pasó.
     El status HTTP queda para lo que es de transporte: un documento que resulta
     no ser una INE responde 200, porque la API hizo su trabajo — el resultado de
     ese trabajo fue que el documento no era del tipo esperado.
     """
+    # Un cliente que no tiene reverso a veces manda el campo vacío (como texto, o
+    # como archivo sin nombre); es lo mismo que no mandarlo.
+    if not isinstance(atras, UploadFile) or not atras.filename:
+        atras = None
+
+    if atras is None:
+        contenido, mime, resto = await _revisar_y_clasificar(
+            image, clasificador.CATEGORIA_INE, codigos.NO_ES_INE)
+        if contenido is None:
+            return resto
+        respuesta = await funciones.procesa_ine(contenido, mime, resto)
+    else:
+        (contenido, mime, resto), (cont_atras, mime_atras, resto_atras) = await asyncio.gather(
+            _revisar_y_clasificar(image, clasificador.CATEGORIA_INE, codigos.NO_ES_INE, "image"),
+            _revisar_y_clasificar(atras, clasificador.CATEGORIA_INE, codigos.NO_ES_INE, "atras"),
+        )
+        if contenido is None:
+            return resto
+        if cont_atras is None:
+            return resto_atras
+        respuesta = await funciones.procesa_ine(
+            contenido, mime, resto, atras=(cont_atras, mime_atras))
+        respuesta["clasificacion_atras"] = resto_atras
+    return codigos.cuerpo(codigos.de_extraccion(respuesta), **respuesta)
+
+
+@app.post(
+        "/procesa_ine_atras/",
+        tags=["Documentos"],
+        summary="INE (reverso)")
+async def procesa_documento_ine_atras(image: UploadFile = File(...)):
+    """
+    Recibe el reverso de una INE en PDF o imagen y devuelve su MRZ interpretada.
+
+    Misma forma de respuesta que /procesa_ine/, con la sección `atras`. Sola, esta
+    cara solo puede comprobar que la MRZ sea íntegra (dígitos de control). Para
+    contrastarla contra el anverso hay que mandar los dos archivos a
+    /procesa_ine/, con el reverso en el campo `atras`.
+
+    Si el archivo no trae ninguna MRZ (lo más común: mandaron el frente) responde
+    227 NO_ES_REVERSO_INE.
+    """
     contenido, mime, resto = await _revisar_y_clasificar(
         image, clasificador.CATEGORIA_INE, codigos.NO_ES_INE)
     if contenido is None:
         return resto
-    respuesta = await funciones.procesa_ine(contenido, mime, resto)
+    respuesta = await funciones.procesa_ine_atras(contenido, mime, resto)
+    if respuesta is None:
+        return codigos.cuerpo(codigos.NO_ES_REVERSO_INE, clasificacion=resto)
     return codigos.cuerpo(codigos.de_extraccion(respuesta), **respuesta)
 
 

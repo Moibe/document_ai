@@ -91,6 +91,11 @@ NO_ES_CEDULA_PANAMA = Desenlace(
     226, "NO_ES_CEDULA_PANAMA",
     "El documento no es una cédula de identidad panameña. No se extrajo ningún dato.")
 
+NO_ES_REVERSO_INE = Desenlace(
+    227, "NO_ES_REVERSO_INE",
+    "No se encontró la zona de lectura mecánica (MRZ) del reverso de la INE. "
+    "Verifica que el archivo sea el reverso de la credencial y no el frente.")
+
 LIMITE_PAGINAS = Desenlace(
     224, "LIMITE_PAGINAS",
     "El documento tiene más páginas de las que se pueden procesar en una sola "
@@ -178,7 +183,7 @@ def cuerpo(desenlace: Desenlace, mensaje: Optional[str] = None,
 TODOS = (
     PROCESADO, PROCESADO_CON_DISCREPANCIAS, PROCESADO_CON_AVISOS,
     PROCESADO_INCOMPLETO, NO_ES_INE, HOJA_EN_BLANCO,
-    ARCHIVO_CORRUPTO, PDF_PROTEGIDO, LIMITE_PAGINAS, NO_ES_PASAPORTE, NO_ES_CEDULA_PANAMA,
+    ARCHIVO_CORRUPTO, PDF_PROTEGIDO, LIMITE_PAGINAS, NO_ES_PASAPORTE, NO_ES_CEDULA_PANAMA, NO_ES_REVERSO_INE,
     ARCHIVO_NO_SOPORTADO, PETICION_INVALIDA, CUOTA_EXCEDIDA,
     ERROR_INTERNO, ERROR_DOCUMENT_AI, SIN_CREDENCIALES,
 )

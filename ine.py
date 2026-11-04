@@ -538,12 +538,22 @@ def _emision_en_mrz(mrz: Dict[str, Any]) -> Optional[str]:
     return tramo if re.fullmatch(r"[0-9]{2}", tramo) else None
 
 
+def _plegar(valor: Any) -> str:
+    """
+    Mayúsculas y sin acentos, para comparar el anverso contra la MRZ. El estándar
+    ICAO no admite acentos en la MRZ (y la Ñ pasa a N), pero el anverso sí los
+    imprime: 'GONZÁLEZ' contra 'GONZALEZ' es el mismo apellido, no una
+    contradicción. Mismo criterio que `plegar` en la validación del pasaporte.
+    """
+    return _sin_acentos(str(valor).upper())
+
+
 def _coincide(a: Any, b: Any, truncable: bool) -> bool:
     """La misma regla que usa `comparar` dentro de validar(), para poder
     preguntarla sin registrar nada."""
     if a in (None, "") or b in (None, ""):
         return False
-    av, bv = str(a).upper(), str(b).upper()
+    av, bv = _plegar(a), _plegar(b)
     return av == bv or (truncable and av.startswith(bv))
 
 
@@ -566,8 +576,8 @@ def _apellidos_equivalentes(ap_f: Any, am_f: Any, ap_m: Any, am_m: Any, abreviad
     """
     if not all(isinstance(x, str) and x.strip() for x in (ap_f, am_f, ap_m, am_m)):
         return False
-    pf = f"{ap_f} {am_f}".upper().split()
-    pm = f"{ap_m} {am_m}".upper().split()
+    pf = _plegar(f"{ap_f} {am_f}").split()
+    pm = _plegar(f"{ap_m} {am_m}").split()
     if len(pf) != len(pm):
         return False
     return all(x == y or (abreviado and x.startswith(y)) for x, y in zip(pf, pm))
@@ -590,7 +600,7 @@ def validar(frente: Dict[str, Any], mrz: Dict[str, Any]) -> Dict[str, Any]:
         if a in (None, "") or b in (None, ""):
             omitidas.append(etiqueta)
             return
-        av, bv = str(a).upper(), str(b).upper()
+        av, bv = _plegar(a), _plegar(b)
         if av == bv:
             coincidencias.append(etiqueta)
         elif truncable and av.startswith(bv):
