@@ -359,9 +359,26 @@ def _texto(data_json: dict) -> str:
     return data_json.get("document", {}).get("text", "")
 
 
+def _parece_reverso(texto: str, frente: dict) -> bool:
+    """
+    Si un archivo que debía ser el anverso es en realidad el reverso: trae la MRZ
+    pero ninguno de los datos que solo están en el frente. Las tres condiciones
+    juntas, para no rechazar un anverso mal leído: sin CURP ni clave de elector
+    extraídas, sin las etiquetas que los acompañan en el texto del OCR, y con una
+    MRZ localizable. Un PDF con las dos caras no cae aquí, porque su frente sí
+    trae CURP.
+    """
+    if frente.get("curp") or frente.get("clave_elector"):
+        return False
+    if re.search(r"CURP|CLAVE\s+DE\s+ELECTOR", (texto or "").upper()):
+        return False
+    return bool(ine._mrz_en_texto(texto))
+
+
 async def _procesa(contenido: bytes, mime_type: str, doc_type: str,
                    clasificacion: Optional[dict] = None,
-                   atras: Optional[Tuple[bytes, str]] = None):
+                   atras: Optional[Tuple[bytes, str]] = None,
+                   clasificacion_atras: Optional[dict] = None):
     """
     Procesa un documento (PDF o imagen) con Document AI y arma su respuesta con
     validación cruzada.
@@ -369,17 +386,22 @@ async def _procesa(contenido: bytes, mime_type: str, doc_type: str,
     `atras` es el reverso (bytes y tipo MIME) cuando el cliente lo manda en un
     archivo aparte: se lee en paralelo y su texto se suma al del anverso, de modo
     que la MRZ se localiza igual que cuando las dos caras vienen en un solo PDF y
-    el anverso se contrasta contra ella.
+    el anverso se contrasta contra ella. Con `atras` los mensajes de rechazo dicen
+    cuál de los dos archivos es el problema.
     """
+    prefijo_frente = "Archivo 'frente': " if atras else ""
+
     if atras is None:
         data_json = await _llama_document_ai(contenido, mime_type, doc_type)
-        texto = _texto(data_json)
+        texto_frente, texto = _texto(data_json), _texto(data_json)
     else:
         data_json, data_atras = await asyncio.gather(
             _llama_document_ai(contenido, mime_type, doc_type),
             _llama_document_ai(atras[0], atras[1], doc_type),
         )
-        texto = f"{_texto(data_json)}\n{_texto(data_atras)}"
+        texto_frente = _texto(data_json)
+        texto_atras = _texto(data_atras)
+        texto = f"{texto_frente}\n{texto_atras}"
 
     try:
         entidades = herramientas.obtener_datos_completos(data_json, conservar_primero=True)
@@ -388,13 +410,6 @@ async def _procesa(contenido: bytes, mime_type: str, doc_type: str,
             repetidos=herramientas.contar_repetidos(data_json),
             texto_ocr=texto,
         )
-        if atras is not None and not respuesta.get("atras"):
-            respuesta["avisos"].append(
-                "el archivo 'atras' no trae una MRZ legible: no se pudo contrastar "
-                "el anverso contra el reverso")
-        if clasificacion:
-            respuesta["clasificacion"] = clasificacion
-        return respuesta
     except Exception as e:
         logger.exception(f"Error al procesar respuesta: {e}")
         raise codigos.ErrorAPI(
@@ -402,17 +417,44 @@ async def _procesa(contenido: bytes, mime_type: str, doc_type: str,
             f"Error al procesar la respuesta de Document AI: {e}",
         )
 
+    if doc_type == "ine":
+        extra = {"clasificacion": clasificacion} if clasificacion else {}
+        if _parece_reverso(texto_frente, respuesta["frente"]):
+            raise codigos.ErrorAPI(
+                codigos.ES_REVERSO_INE, prefijo_frente + codigos.ES_REVERSO_INE.mensaje, **extra)
+        if atras is not None and ine_atras.armar_respuesta(texto_atras) is None:
+            raise codigos.ErrorAPI(
+                codigos.NO_ES_REVERSO_INE,
+                "Archivo 'atras': " + codigos.NO_ES_REVERSO_INE.mensaje, **extra)
 
-async def procesa_ine(contenido: bytes, mime_type: str, clasificacion: Optional[dict] = None,
-                      atras: Optional[Tuple[bytes, str]] = None):
-    """Procesa una INE (PDF o imagen), con su reverso aparte si el cliente lo manda."""
-    return await _procesa(contenido, mime_type, "ine", clasificacion, atras)
+    if clasificacion:
+        respuesta["clasificacion"] = clasificacion
+    if clasificacion_atras:
+        respuesta["clasificacion_atras"] = clasificacion_atras
+    return respuesta
+
+
+async def procesa_ine(contenido: bytes, mime_type: str, clasificacion: Optional[dict] = None):
+    """Procesa el anverso de una INE (PDF o imagen). Si el archivo es el reverso, responde 228."""
+    return await _procesa(contenido, mime_type, "ine", clasificacion)
+
+
+async def procesa_ine_ambas(frente: Tuple[bytes, str], atras: Tuple[bytes, str],
+                            clasificacion: Optional[dict] = None,
+                            clasificacion_atras: Optional[dict] = None):
+    """
+    Procesa el anverso y el reverso de una INE, mandados en archivos separados, y
+    contrasta uno contra el otro. Responde 228 si el anverso es en realidad un
+    reverso y 227 si el reverso no trae MRZ.
+    """
+    return await _procesa(frente[0], frente[1], "ine", clasificacion,
+                          atras=atras, clasificacion_atras=clasificacion_atras)
 
 
 async def procesa_ine_atras(contenido: bytes, mime_type: str, clasificacion: Optional[dict] = None):
     """
-    Procesa solo el reverso de una INE (PDF o imagen). Devuelve None si el
-    archivo no trae ninguna MRZ.
+    Procesa solo el reverso de una INE (PDF o imagen). Responde 227 si el archivo
+    no trae ninguna MRZ (lo más común: mandaron el frente).
 
     Se usa el processor de la INE solo para leer el texto: la MRZ no sale de
     ninguna entidad sino del OCR (ver `ine_atras`).
@@ -426,7 +468,11 @@ async def procesa_ine_atras(contenido: bytes, mime_type: str, clasificacion: Opt
             codigos.ERROR_DOCUMENT_AI,
             f"Error al procesar la respuesta de Document AI: {e}",
         )
-    if respuesta is not None and clasificacion:
+    if respuesta is None:
+        raise codigos.ErrorAPI(
+            codigos.NO_ES_REVERSO_INE,
+            **({"clasificacion": clasificacion} if clasificacion else {}))
+    if clasificacion:
         respuesta["clasificacion"] = clasificacion
     return respuesta
 

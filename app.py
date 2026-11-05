@@ -9,8 +9,7 @@ import funciones
 import herramientas
 from io import BytesIO
 from pathlib import Path
-from typing import Optional, Union
-from starlette.datastructures import UploadFile as ArchivoSubido
+from typing import Optional
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi import FastAPI, File, Request, UploadFile, HTTPException, status
 
@@ -34,7 +33,7 @@ async def _error_api(request: Request, exc: codigos.ErrorAPI):
     """Las fallas de /procesa_ine/ se reportan con la misma forma que los éxitos."""
     return JSONResponse(
         status_code=exc.desenlace.http,
-        content=codigos.cuerpo(exc.desenlace, exc.mensaje),
+        content=codigos.cuerpo(exc.desenlace, exc.mensaje, **exc.extra),
     )
 
 # Nuevo endpoint para Health Check
@@ -217,49 +216,28 @@ async def _revisar_y_clasificar(file: UploadFile, categoria: str, no_es, campo: 
     return None, None, codigos.cuerpo(desenlace, decir(desenlace.mensaje), clasificacion=veredicto)
 
 @app.post(
-        "/procesa_ine/", 
-        tags=["Documentos"],       
-        summary="INE")
-async def procesa_documento_ine(image: UploadFile = File(...),
-                                atras: Union[UploadFile, str, None] = File(None)):
+        "/procesa_ine/",
+        tags=["Documentos"],
+        summary="INE (anverso)")
+async def procesa_documento_ine(image: UploadFile = File(...)):
     """
-    Recibe una INE en PDF o imagen y devuelve sus datos.
+    Recibe el anverso de una INE en PDF o imagen y devuelve sus datos.
 
-    El reverso se puede mandar en el mismo archivo o aparte en el campo opcional
-    `atras`. Con `atras`, la MRZ del reverso se contrasta contra el anverso, que
-    es la comprobación que caza errores de lectura; sin ella, esa parte de la
-    validación queda en `sin_verificar`.
+    Sin el reverso no hay contra qué contrastar el anverso, así que esa parte de
+    la validación queda en `sin_verificar` (responde 212). Para la validación
+    completa, usa /procesa_ine_ambas/. Un PDF que ya trae las dos caras sí se
+    contrasta aquí. Si el archivo es el reverso, responde 228.
 
     Toda respuesta abre con `codigo`, `estado` y `mensaje`, que dicen qué pasó.
     El status HTTP queda para lo que es de transporte: un documento que resulta
     no ser una INE responde 200, porque la API hizo su trabajo — el resultado de
     ese trabajo fue que el documento no era del tipo esperado.
     """
-    # Un cliente que no tiene reverso a veces manda el campo vacío (como texto, o
-    # como archivo sin nombre); es lo mismo que no mandarlo. Ojo: el archivo que
-    # llega es un UploadFile de starlette, no el de fastapi (que solo lo hereda),
-    # así que `isinstance` con el de fastapi lo descartaba SIEMPRE.
-    if not isinstance(atras, ArchivoSubido) or not atras.filename:
-        atras = None
-
-    if atras is None:
-        contenido, mime, resto = await _revisar_y_clasificar(
-            image, clasificador.CATEGORIA_INE, codigos.NO_ES_INE)
-        if contenido is None:
-            return resto
-        respuesta = await funciones.procesa_ine(contenido, mime, resto)
-    else:
-        (contenido, mime, resto), (cont_atras, mime_atras, resto_atras) = await asyncio.gather(
-            _revisar_y_clasificar(image, clasificador.CATEGORIA_INE, codigos.NO_ES_INE, "image"),
-            _revisar_y_clasificar(atras, clasificador.CATEGORIA_INE, codigos.NO_ES_INE, "atras"),
-        )
-        if contenido is None:
-            return resto
-        if cont_atras is None:
-            return resto_atras
-        respuesta = await funciones.procesa_ine(
-            contenido, mime, resto, atras=(cont_atras, mime_atras))
-        respuesta["clasificacion_atras"] = resto_atras
+    contenido, mime, resto = await _revisar_y_clasificar(
+        image, clasificador.CATEGORIA_INE, codigos.NO_ES_INE)
+    if contenido is None:
+        return resto
+    respuesta = await funciones.procesa_ine(contenido, mime, resto)
     return codigos.cuerpo(codigos.de_extraccion(respuesta), **respuesta)
 
 
@@ -273,8 +251,7 @@ async def procesa_documento_ine_atras(image: UploadFile = File(...)):
 
     Misma forma de respuesta que /procesa_ine/, con la sección `atras`. Sola, esta
     cara solo puede comprobar que la MRZ sea íntegra (dígitos de control). Para
-    contrastarla contra el anverso hay que mandar los dos archivos a
-    /procesa_ine/, con el reverso en el campo `atras`.
+    contrastarla contra el anverso, usa /procesa_ine_ambas/.
 
     Si el archivo no trae ninguna MRZ (lo más común: mandaron el frente) responde
     227 NO_ES_REVERSO_INE.
@@ -284,8 +261,35 @@ async def procesa_documento_ine_atras(image: UploadFile = File(...)):
     if contenido is None:
         return resto
     respuesta = await funciones.procesa_ine_atras(contenido, mime, resto)
-    if respuesta is None:
-        return codigos.cuerpo(codigos.NO_ES_REVERSO_INE, clasificacion=resto)
+    return codigos.cuerpo(codigos.de_extraccion(respuesta), **respuesta)
+
+
+@app.post(
+        "/procesa_ine_ambas/",
+        tags=["Documentos"],
+        summary="INE (anverso y reverso)")
+async def procesa_documento_ine_ambas(frente: UploadFile = File(...),
+                                      atras: UploadFile = File(...)):
+    """
+    Recibe el anverso (`frente`) y el reverso (`atras`) de una INE, cada uno en su
+    archivo (PDF o imagen), y contrasta uno contra el otro: nombres, nacimiento,
+    sexo, vigencia y sección contra la MRZ. Es la validación completa.
+
+    Los dos campos son obligatorios y cada uno tiene su papel: si el anverso es en
+    realidad un reverso responde 228, y si el reverso no trae MRZ responde 227. Los
+    mensajes dicen cuál de los dos archivos es el problema. Hace dos lecturas de
+    Document AI, así que tarda aproximadamente el doble que /procesa_ine/.
+    """
+    (cont_f, mime_f, resto_f), (cont_a, mime_a, resto_a) = await asyncio.gather(
+        _revisar_y_clasificar(frente, clasificador.CATEGORIA_INE, codigos.NO_ES_INE, "frente"),
+        _revisar_y_clasificar(atras, clasificador.CATEGORIA_INE, codigos.NO_ES_INE, "atras"),
+    )
+    if cont_f is None:
+        return resto_f
+    if cont_a is None:
+        return resto_a
+    respuesta = await funciones.procesa_ine_ambas(
+        (cont_f, mime_f), (cont_a, mime_a), resto_f, resto_a)
     return codigos.cuerpo(codigos.de_extraccion(respuesta), **respuesta)
 
 

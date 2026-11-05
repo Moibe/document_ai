@@ -96,6 +96,11 @@ NO_ES_REVERSO_INE = Desenlace(
     "No se encontró la zona de lectura mecánica (MRZ) del reverso de la INE. "
     "Verifica que el archivo sea el reverso de la credencial y no el frente.")
 
+ES_REVERSO_INE = Desenlace(
+    228, "ES_REVERSO_INE",
+    "El archivo enviado como anverso es el reverso de la INE: trae la zona de lectura "
+    "mecánica (MRZ) pero ningún dato del frente. Envía el frente, o usa el endpoint del reverso.")
+
 LIMITE_PAGINAS = Desenlace(
     224, "LIMITE_PAGINAS",
     "El documento tiene más páginas de las que se pueden procesar en una sola "
@@ -137,13 +142,15 @@ class ErrorAPI(Exception):
     dos formas distintas que parsear.
 
     `mensaje` sobreescribe el texto genérico del desenlace cuando hay algo
-    concreto que decir (por ejemplo, QUÉ tipo de archivo se rechazó).
+    concreto que decir (por ejemplo, QUÉ tipo de archivo se rechazó). `extra` son
+    campos que se suman al cuerpo (por ejemplo, el veredicto del clasificador).
     """
 
-    def __init__(self, desenlace: Desenlace, mensaje: Optional[str] = None):
+    def __init__(self, desenlace: Desenlace, mensaje: Optional[str] = None, **extra: Any):
         super().__init__(mensaje or desenlace.mensaje)
         self.desenlace = desenlace
         self.mensaje = mensaje or desenlace.mensaje
+        self.extra = extra
 
 
 def de_extraccion(respuesta: Dict[str, Any]) -> Desenlace:
@@ -183,7 +190,7 @@ def cuerpo(desenlace: Desenlace, mensaje: Optional[str] = None,
 TODOS = (
     PROCESADO, PROCESADO_CON_DISCREPANCIAS, PROCESADO_CON_AVISOS,
     PROCESADO_INCOMPLETO, NO_ES_INE, HOJA_EN_BLANCO,
-    ARCHIVO_CORRUPTO, PDF_PROTEGIDO, LIMITE_PAGINAS, NO_ES_PASAPORTE, NO_ES_CEDULA_PANAMA, NO_ES_REVERSO_INE,
+    ARCHIVO_CORRUPTO, PDF_PROTEGIDO, LIMITE_PAGINAS, NO_ES_PASAPORTE, NO_ES_CEDULA_PANAMA, NO_ES_REVERSO_INE, ES_REVERSO_INE,
     ARCHIVO_NO_SOPORTADO, PETICION_INVALIDA, CUOTA_EXCEDIDA,
     ERROR_INTERNO, ERROR_DOCUMENT_AI, SIN_CREDENCIALES,
 )
