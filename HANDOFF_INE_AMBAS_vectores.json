@@ -1,0 +1,2284 @@
+{
+  "que_es": "Vectores de prueba de POST /procesa_ine_ambas/ de RAD. Cada caso trae lo que el motor de lectura entrega (`entrada`: campos extraídos y texto del OCR de cada archivo, más el veredicto del clasificador cuando aplica) y la respuesta que RAD dio (`salida_esperada`). Datos ficticios.",
+  "como_usarlos": "Alimenta tu capa de validación con `entrada` y compara la respuesta con `salida_esperada` (igualdad de JSON, sin importar el orden de las llaves). Los casos 19-24 y 26-28 no dependen del motor de lectura: son las guardias del archivo y de la petición. `no_comparar` lista lo que el caso no exige igualar (ver el handoff).",
+  "nunca_comparar": [
+    "clasificacion.confianza",
+    "clasificacion.caracteres_leidos",
+    "clasificacion_atras.confianza",
+    "clasificacion_atras.caracteres_leidos"
+  ],
+  "clasificador_por_omision": "Salvo que el caso diga otra cosa, el clasificador respondió categoria 'ine' (confianza 0.9999) para los dos archivos. `categoria` sí se compara; `confianza` y `caracteres_leidos` no, porque dependen del clasificador y del OCR de cada sistema.",
+  "generado_con": "generar_vectores_ine_ambas.py",
+  "casos": [
+    {
+      "id": "01_valido_formato_nuevo",
+      "descripcion": "Credencial de formato nuevo, todo coherente: las 16 comprobaciones cuadran.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombre": "DANIELA ITZEL",
+            "domicilio": {
+              "calle_numero": "CALLE ALAMEDA 120",
+              "colonia": "LOMAS DE SAN JUAN",
+              "codigo_postal": "44100",
+              "municipio_delegacion": "GUADALAJARA",
+              "estado": "JAL"
+            },
+            "clave_elector": "MRVGDN91072314M123",
+            "curp": "MOVD910723MJCRGN05",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "anio_registro": "2014 01",
+            "seccion": "0817",
+            "numero_emision": "01",
+            "vigencia": "2032",
+            "pais": "MEXICO"
+          },
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nMORALES\nVEGA\nDANIELA ITZEL\nDOMICILIO\nCALLE ALAMEDA 120\nCOL LOMAS DE SAN JUAN 44100\nGUADALAJARA, JAL\nCLAVE DE ELECTOR MRVGDN91072314M123\nCURP MOVD910723MJCRGN05\nAÑO DE REGISTRO 2014 01\nFECHA DE NACIMIENTO 23/07/1991\nSEXO M\nSECCION 0817\nVIGENCIA 2032",
+          "repetidos": {}
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX2034519875<<0817112233445\n9107234M3212312MEX<01<<<<<<<<6\nMORALES<VEGA<<DANIELA<ITZEL<<<"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 200,
+        "estado": "PROCESADO",
+        "mensaje": "El documento se procesó y todas las comprobaciones cuadraron.",
+        "frente": {
+          "apellido_paterno": "MORALES",
+          "apellido_materno": "VEGA",
+          "nombre": "DANIELA ITZEL",
+          "domicilio": {
+            "calle_numero": "CALLE ALAMEDA 120",
+            "colonia": "LOMAS DE SAN JUAN",
+            "codigo_postal": "44100",
+            "municipio_delegacion": "GUADALAJARA",
+            "estado": "JAL"
+          },
+          "clave_elector": "MRVGDN91072314M123",
+          "curp": "MOVD910723MJCRGN05",
+          "fecha_nacimiento": "1991-07-23",
+          "sexo": "M",
+          "anio_registro": "2014 01",
+          "seccion": "0817",
+          "numero_emision": "01",
+          "vigencia": "2032",
+          "pais": "MEXICO",
+          "formato_credencial": "nuevo",
+          "no_impresos": [
+            "estado_clave",
+            "municipio_clave",
+            "localidad_clave",
+            "anio_emision"
+          ]
+        },
+        "atras": {
+          "mrz": {
+            "lineas": [
+              "IDMEX2034519875<<0817112233445",
+              "9107234M3212312MEX<01<<<<<<<<6",
+              "MORALES<VEGA<<DANIELA<ITZEL<<<"
+            ],
+            "tipo_documento": "ID",
+            "pais_emisor": "MEX",
+            "cic": "203451987",
+            "seccion": "0817",
+            "identificador_ciudadano": "112233445",
+            "nacionalidad": "MEX",
+            "folio": "203451987",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "vigencia": "2032-12-31",
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombres": "DANIELA ITZEL",
+            "digitos_control": {
+              "cic": true,
+              "fecha_nacimiento": true,
+              "vigencia": true,
+              "compuesto": true
+            },
+            "integra": true,
+            "origen": "texto"
+          }
+        },
+        "validacion": {
+          "ok": true,
+          "completo": true,
+          "coincidencias": [
+            "MRZ (dígitos de control)",
+            "fecha_nacimiento (MRZ)",
+            "sexo (MRZ)",
+            "apellido_paterno (MRZ)",
+            "apellido_materno (MRZ)",
+            "nombre (MRZ)",
+            "vigencia (MRZ)",
+            "seccion (MRZ)",
+            "anio_registro, sufijo (MRZ)",
+            "fecha_nacimiento (CURP)",
+            "sexo (CURP)",
+            "curp (dígito verificador)",
+            "clave_elector vs CURP (iniciales)",
+            "fecha_nacimiento (clave_elector)",
+            "sexo (clave_elector)",
+            "domicilio (código postal vs estado)"
+          ],
+          "discrepancias": [],
+          "sin_verificar": []
+        },
+        "avisos": [],
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 313
+        },
+        "clasificacion_atras": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 127
+        }
+      }
+    },
+    {
+      "id": "02_valido_con_acentos",
+      "descripcion": "El anverso imprime acentos (GÓMEZ, MARTÍNEZ, JOSÉ) y la MRZ no los admite: es el mismo dato, no una discrepancia.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "GÓMEZ",
+            "apellido_materno": "MARTÍNEZ",
+            "nombre": "JOSÉ LUIS",
+            "domicilio": {
+              "calle_numero": "AV INSURGENTES 2050 INT 4",
+              "colonia": "DEL VALLE",
+              "codigo_postal": "06600",
+              "municipio_delegacion": "CUAUHTEMOC",
+              "estado": "CDMX"
+            },
+            "clave_elector": "GMMRLS85110409H123",
+            "curp": "GOML851104HDFMRS08",
+            "fecha_nacimiento": "1985-11-04",
+            "sexo": "H",
+            "anio_registro": "2012 02",
+            "seccion": "4210",
+            "numero_emision": "02",
+            "vigencia": "2030",
+            "pais": "MEXICO"
+          },
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nGÓMEZ\nMARTÍNEZ\nJOSÉ LUIS\nDOMICILIO\nAV INSURGENTES 2050 INT 4\nCOL DEL VALLE 06600\nCUAUHTEMOC, CDMX\nCLAVE DE ELECTOR GMMRLS85110409H123\nCURP GOML851104HDFMRS08\nAÑO DE REGISTRO 2012 02\nFECHA DE NACIMIENTO 04/11/1985\nSEXO H\nSECCION 4210\nVIGENCIA 2030",
+          "repetidos": {}
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX3182746508<<4210556677889\n8511043H3012316MEX<02<<<<<<<<6\nGOMEZ<MARTINEZ<<JOSE<LUIS<<<<<"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 200,
+        "estado": "PROCESADO",
+        "mensaje": "El documento se procesó y todas las comprobaciones cuadraron.",
+        "frente": {
+          "apellido_paterno": "GÓMEZ",
+          "apellido_materno": "MARTÍNEZ",
+          "nombre": "JOSÉ LUIS",
+          "domicilio": {
+            "calle_numero": "AV INSURGENTES 2050 INT 4",
+            "colonia": "DEL VALLE",
+            "codigo_postal": "06600",
+            "municipio_delegacion": "CUAUHTEMOC",
+            "estado": "CDMX"
+          },
+          "clave_elector": "GMMRLS85110409H123",
+          "curp": "GOML851104HDFMRS08",
+          "fecha_nacimiento": "1985-11-04",
+          "sexo": "H",
+          "anio_registro": "2012 02",
+          "seccion": "4210",
+          "numero_emision": "02",
+          "vigencia": "2030",
+          "pais": "MEXICO",
+          "formato_credencial": "nuevo",
+          "no_impresos": [
+            "estado_clave",
+            "municipio_clave",
+            "localidad_clave",
+            "anio_emision"
+          ]
+        },
+        "atras": {
+          "mrz": {
+            "lineas": [
+              "IDMEX3182746508<<4210556677889",
+              "8511043H3012316MEX<02<<<<<<<<6",
+              "GOMEZ<MARTINEZ<<JOSE<LUIS<<<<<"
+            ],
+            "tipo_documento": "ID",
+            "pais_emisor": "MEX",
+            "cic": "318274650",
+            "seccion": "4210",
+            "identificador_ciudadano": "556677889",
+            "nacionalidad": "MEX",
+            "folio": "318274650",
+            "fecha_nacimiento": "1985-11-04",
+            "sexo": "H",
+            "vigencia": "2030-12-31",
+            "apellido_paterno": "GOMEZ",
+            "apellido_materno": "MARTINEZ",
+            "nombres": "JOSE LUIS",
+            "digitos_control": {
+              "cic": true,
+              "fecha_nacimiento": true,
+              "vigencia": true,
+              "compuesto": true
+            },
+            "integra": true,
+            "origen": "texto"
+          }
+        },
+        "validacion": {
+          "ok": true,
+          "completo": true,
+          "coincidencias": [
+            "MRZ (dígitos de control)",
+            "fecha_nacimiento (MRZ)",
+            "sexo (MRZ)",
+            "apellido_paterno (MRZ)",
+            "apellido_materno (MRZ)",
+            "nombre (MRZ)",
+            "vigencia (MRZ)",
+            "seccion (MRZ)",
+            "anio_registro, sufijo (MRZ)",
+            "fecha_nacimiento (CURP)",
+            "sexo (CURP)",
+            "curp (dígito verificador)",
+            "clave_elector vs CURP (iniciales)",
+            "fecha_nacimiento (clave_elector)",
+            "sexo (clave_elector)",
+            "domicilio (código postal vs estado)"
+          ],
+          "discrepancias": [],
+          "sin_verificar": []
+        },
+        "avisos": [],
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 311
+        },
+        "clasificacion_atras": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 127
+        }
+      }
+    },
+    {
+      "id": "03_valido_formato_anterior",
+      "descripcion": "Credencial de formato anterior: trae el renglón ESTADO/MUNICIPIO/LOCALIDAD/EMISIÓN, así que no hay `no_impresos`.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "ORTEGA",
+            "apellido_materno": "LUNA",
+            "nombre": "SERGIO",
+            "domicilio": {
+              "calle_numero": "PRIV DE LOS PINOS 8",
+              "colonia": "CENTRO",
+              "codigo_postal": "36000",
+              "municipio_delegacion": "GUANAJUATO",
+              "estado": "GTO"
+            },
+            "clave_elector": "ORLNSR70051211H123",
+            "curp": "OELS700512HGTRNR06",
+            "fecha_nacimiento": "1970-05-12",
+            "sexo": "H",
+            "anio_registro": "2008 02",
+            "seccion": "1530",
+            "estado_clave": "11",
+            "municipio_clave": "015",
+            "localidad_clave": "0001",
+            "anio_emision": "2008",
+            "vigencia": "2024",
+            "pais": "MEXICO"
+          },
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nORTEGA\nLUNA\nSERGIO\nDOMICILIO\nPRIV DE LOS PINOS 8\nCOL CENTRO 36000\nGUANAJUATO, GTO\nCLAVE DE ELECTOR ORLNSR70051211H123\nCURP OELS700512HGTRNR06\nAÑO DE REGISTRO 2008 02\nFECHA DE NACIMIENTO 12/05/1970\nSEXO H\nESTADO 11 MUNICIPIO 015 LOCALIDAD 0001 EMISION 2008\nSECCION 1530\nVIGENCIA 2024",
+          "repetidos": {}
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX4719203860<<1530998877665\n7005129H2412311MEX<02<<<<<<<<6\nORTEGA<LUNA<<SERGIO<<<<<<<<<<<"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 200,
+        "estado": "PROCESADO",
+        "mensaje": "El documento se procesó y todas las comprobaciones cuadraron.",
+        "frente": {
+          "apellido_paterno": "ORTEGA",
+          "apellido_materno": "LUNA",
+          "nombre": "SERGIO",
+          "domicilio": {
+            "calle_numero": "PRIV DE LOS PINOS 8",
+            "colonia": "CENTRO",
+            "codigo_postal": "36000",
+            "municipio_delegacion": "GUANAJUATO",
+            "estado": "GTO"
+          },
+          "clave_elector": "ORLNSR70051211H123",
+          "curp": "OELS700512HGTRNR06",
+          "fecha_nacimiento": "1970-05-12",
+          "sexo": "H",
+          "anio_registro": "2008 02",
+          "seccion": "1530",
+          "estado_clave": "11",
+          "municipio_clave": "015",
+          "localidad_clave": "0001",
+          "anio_emision": "2008",
+          "vigencia": "2024",
+          "pais": "MEXICO",
+          "formato_credencial": "anterior"
+        },
+        "atras": {
+          "mrz": {
+            "lineas": [
+              "IDMEX4719203860<<1530998877665",
+              "7005129H2412311MEX<02<<<<<<<<6",
+              "ORTEGA<LUNA<<SERGIO<<<<<<<<<<<"
+            ],
+            "tipo_documento": "ID",
+            "pais_emisor": "MEX",
+            "cic": "471920386",
+            "seccion": "1530",
+            "identificador_ciudadano": "998877665",
+            "nacionalidad": "MEX",
+            "folio": "471920386",
+            "fecha_nacimiento": "1970-05-12",
+            "sexo": "H",
+            "vigencia": "2024-12-31",
+            "apellido_paterno": "ORTEGA",
+            "apellido_materno": "LUNA",
+            "nombres": "SERGIO",
+            "digitos_control": {
+              "cic": true,
+              "fecha_nacimiento": true,
+              "vigencia": true,
+              "compuesto": true
+            },
+            "integra": true,
+            "origen": "texto"
+          }
+        },
+        "validacion": {
+          "ok": true,
+          "completo": true,
+          "coincidencias": [
+            "MRZ (dígitos de control)",
+            "fecha_nacimiento (MRZ)",
+            "sexo (MRZ)",
+            "apellido_paterno (MRZ)",
+            "apellido_materno (MRZ)",
+            "nombre (MRZ)",
+            "vigencia (MRZ)",
+            "seccion (MRZ)",
+            "anio_registro, sufijo (MRZ)",
+            "fecha_nacimiento (CURP)",
+            "sexo (CURP)",
+            "curp (dígito verificador)",
+            "clave_elector vs CURP (iniciales)",
+            "fecha_nacimiento (clave_elector)",
+            "sexo (clave_elector)",
+            "domicilio (código postal vs estado)"
+          ],
+          "discrepancias": [],
+          "sin_verificar": []
+        },
+        "avisos": [],
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 347
+        },
+        "clasificacion_atras": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 127
+        }
+      }
+    },
+    {
+      "id": "04_nombre_truncado_en_la_mrz",
+      "descripcion": "El nombre completo no cabe en los 30 caracteres del renglón 3: la MRZ lo abrevia (`campo_truncado`) y el prefijo cuenta como coincidencia.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "BERNARDINO",
+            "apellido_materno": "HERNANDEZ",
+            "nombre": "JUAN GUILLERMO",
+            "domicilio": {
+              "calle_numero": "AV INSURGENTES 2050 INT 4",
+              "colonia": "DEL VALLE",
+              "codigo_postal": "06600",
+              "municipio_delegacion": "CUAUHTEMOC",
+              "estado": "CDMX"
+            },
+            "clave_elector": "BRHRJN79021815H123",
+            "curp": "BEHJ790218HMCRRN05",
+            "fecha_nacimiento": "1979-02-18",
+            "sexo": "H",
+            "anio_registro": "2016 00",
+            "seccion": "2290",
+            "numero_emision": "00",
+            "vigencia": "2033",
+            "pais": "MEXICO"
+          },
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nBERNARDINO\nHERNANDEZ\nJUAN GUILLERMO\nDOMICILIO\nAV INSURGENTES 2050 INT 4\nCOL DEL VALLE 06600\nCUAUHTEMOC, CDMX\nCLAVE DE ELECTOR BRHRJN79021815H123\nCURP BEHJ790218HMCRRN05\nAÑO DE REGISTRO 2016 00\nFECHA DE NACIMIENTO 18/02/1979\nSEXO H\nSECCION 2290\nVIGENCIA 2033",
+          "repetidos": {}
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX5073182466<<2290123987456\n7902181H3312315MEX<00<<<<<<<<0\nBERNARDINO<HERNANDEZ<<JUAN<GUI"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 200,
+        "estado": "PROCESADO",
+        "mensaje": "El documento se procesó y todas las comprobaciones cuadraron.",
+        "frente": {
+          "apellido_paterno": "BERNARDINO",
+          "apellido_materno": "HERNANDEZ",
+          "nombre": "JUAN GUILLERMO",
+          "domicilio": {
+            "calle_numero": "AV INSURGENTES 2050 INT 4",
+            "colonia": "DEL VALLE",
+            "codigo_postal": "06600",
+            "municipio_delegacion": "CUAUHTEMOC",
+            "estado": "CDMX"
+          },
+          "clave_elector": "BRHRJN79021815H123",
+          "curp": "BEHJ790218HMCRRN05",
+          "fecha_nacimiento": "1979-02-18",
+          "sexo": "H",
+          "anio_registro": "2016 00",
+          "seccion": "2290",
+          "numero_emision": "00",
+          "vigencia": "2033",
+          "pais": "MEXICO",
+          "formato_credencial": "nuevo",
+          "no_impresos": [
+            "estado_clave",
+            "municipio_clave",
+            "localidad_clave",
+            "anio_emision"
+          ]
+        },
+        "atras": {
+          "mrz": {
+            "lineas": [
+              "IDMEX5073182466<<2290123987456",
+              "7902181H3312315MEX<00<<<<<<<<0",
+              "BERNARDINO<HERNANDEZ<<JUAN<GUI"
+            ],
+            "tipo_documento": "ID",
+            "pais_emisor": "MEX",
+            "cic": "507318246",
+            "seccion": "2290",
+            "identificador_ciudadano": "123987456",
+            "nacionalidad": "MEX",
+            "folio": "507318246",
+            "fecha_nacimiento": "1979-02-18",
+            "sexo": "H",
+            "vigencia": "2033-12-31",
+            "apellido_paterno": "BERNARDINO",
+            "apellido_materno": "HERNANDEZ",
+            "nombres": "JUAN GUI",
+            "campo_truncado": "nombres",
+            "digitos_control": {
+              "cic": true,
+              "fecha_nacimiento": true,
+              "vigencia": true,
+              "compuesto": true
+            },
+            "integra": true,
+            "origen": "texto"
+          }
+        },
+        "validacion": {
+          "ok": true,
+          "completo": true,
+          "coincidencias": [
+            "MRZ (dígitos de control)",
+            "fecha_nacimiento (MRZ)",
+            "sexo (MRZ)",
+            "apellido_paterno (MRZ)",
+            "apellido_materno (MRZ)",
+            "nombre (MRZ) (truncado en la MRZ)",
+            "vigencia (MRZ)",
+            "seccion (MRZ)",
+            "anio_registro, sufijo (MRZ)",
+            "fecha_nacimiento (CURP)",
+            "sexo (CURP)",
+            "curp (dígito verificador)",
+            "clave_elector vs CURP (iniciales)",
+            "fecha_nacimiento (clave_elector)",
+            "sexo (clave_elector)",
+            "domicilio (código postal vs estado)"
+          ],
+          "discrepancias": [],
+          "sin_verificar": []
+        },
+        "avisos": [],
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 322
+        },
+        "clasificacion_atras": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 127
+        }
+      }
+    },
+    {
+      "id": "05_apellido_compuesto",
+      "descripcion": "Apellido compuesto 'DE LA CRUZ': en la MRZ el espacio y el separador entre apellidos son el mismo '<', así que se comparan las palabras.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "DE LA CRUZ",
+            "apellido_materno": "HERNANDEZ",
+            "nombre": "MARIO",
+            "domicilio": {
+              "calle_numero": "AV INSURGENTES 2050 INT 4",
+              "colonia": "DEL VALLE",
+              "codigo_postal": "06600",
+              "municipio_delegacion": "CUAUHTEMOC",
+              "estado": "CDMX"
+            },
+            "clave_elector": "CRHRMR88093009H123",
+            "curp": "CUHM880930HDFRRR07",
+            "fecha_nacimiento": "1988-09-30",
+            "sexo": "H",
+            "anio_registro": "2013 01",
+            "seccion": "3345",
+            "numero_emision": "01",
+            "vigencia": "2031",
+            "pais": "MEXICO"
+          },
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nDE LA CRUZ\nHERNANDEZ\nMARIO\nDOMICILIO\nAV INSURGENTES 2050 INT 4\nCOL DEL VALLE 06600\nCUAUHTEMOC, CDMX\nCLAVE DE ELECTOR CRHRMR88093009H123\nCURP CUHM880930HDFRRR07\nAÑO DE REGISTRO 2013 01\nFECHA DE NACIMIENTO 30/09/1988\nSEXO H\nSECCION 3345\nVIGENCIA 2031",
+          "repetidos": {}
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX6820459134<<3345445566778\n8809302H3112319MEX<01<<<<<<<<6\nDE<LA<CRUZ<HERNANDEZ<<MARIO<<<"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 200,
+        "estado": "PROCESADO",
+        "mensaje": "El documento se procesó y todas las comprobaciones cuadraron.",
+        "frente": {
+          "apellido_paterno": "DE LA CRUZ",
+          "apellido_materno": "HERNANDEZ",
+          "nombre": "MARIO",
+          "domicilio": {
+            "calle_numero": "AV INSURGENTES 2050 INT 4",
+            "colonia": "DEL VALLE",
+            "codigo_postal": "06600",
+            "municipio_delegacion": "CUAUHTEMOC",
+            "estado": "CDMX"
+          },
+          "clave_elector": "CRHRMR88093009H123",
+          "curp": "CUHM880930HDFRRR07",
+          "fecha_nacimiento": "1988-09-30",
+          "sexo": "H",
+          "anio_registro": "2013 01",
+          "seccion": "3345",
+          "numero_emision": "01",
+          "vigencia": "2031",
+          "pais": "MEXICO",
+          "formato_credencial": "nuevo",
+          "no_impresos": [
+            "estado_clave",
+            "municipio_clave",
+            "localidad_clave",
+            "anio_emision"
+          ]
+        },
+        "atras": {
+          "mrz": {
+            "lineas": [
+              "IDMEX6820459134<<3345445566778",
+              "8809302H3112319MEX<01<<<<<<<<6",
+              "DE<LA<CRUZ<HERNANDEZ<<MARIO<<<"
+            ],
+            "tipo_documento": "ID",
+            "pais_emisor": "MEX",
+            "cic": "682045913",
+            "seccion": "3345",
+            "identificador_ciudadano": "445566778",
+            "nacionalidad": "MEX",
+            "folio": "682045913",
+            "fecha_nacimiento": "1988-09-30",
+            "sexo": "H",
+            "vigencia": "2031-12-31",
+            "apellido_paterno": "DE",
+            "apellido_materno": "LA CRUZ HERNANDEZ",
+            "nombres": "MARIO",
+            "digitos_control": {
+              "cic": true,
+              "fecha_nacimiento": true,
+              "vigencia": true,
+              "compuesto": true
+            },
+            "integra": true,
+            "origen": "texto"
+          }
+        },
+        "validacion": {
+          "ok": true,
+          "completo": true,
+          "coincidencias": [
+            "MRZ (dígitos de control)",
+            "fecha_nacimiento (MRZ)",
+            "sexo (MRZ)",
+            "apellido_paterno (MRZ)",
+            "apellido_materno (MRZ)",
+            "nombre (MRZ)",
+            "vigencia (MRZ)",
+            "seccion (MRZ)",
+            "anio_registro, sufijo (MRZ)",
+            "fecha_nacimiento (CURP)",
+            "sexo (CURP)",
+            "curp (dígito verificador)",
+            "clave_elector vs CURP (iniciales)",
+            "fecha_nacimiento (clave_elector)",
+            "sexo (clave_elector)",
+            "domicilio (código postal vs estado)"
+          ],
+          "discrepancias": [],
+          "sin_verificar": []
+        },
+        "avisos": [],
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 313
+        },
+        "clasificacion_atras": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 127
+        }
+      }
+    },
+    {
+      "id": "06_error_de_ocr_en_clave_de_elector",
+      "descripcion": "Una letra de la clave de elector mal leída: el modelo no lo nota, el cruce contra la CURP sí. Sale 210.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombre": "DANIELA ITZEL",
+            "domicilio": {
+              "calle_numero": "CALLE ALAMEDA 120",
+              "colonia": "LOMAS DE SAN JUAN",
+              "codigo_postal": "44100",
+              "municipio_delegacion": "GUADALAJARA",
+              "estado": "JAL"
+            },
+            "clave_elector": "MRVUDN91072314M123",
+            "curp": "MOVD910723MJCRGN05",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "anio_registro": "2014 01",
+            "seccion": "0817",
+            "numero_emision": "01",
+            "vigencia": "2032",
+            "pais": "MEXICO"
+          },
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nMORALES\nVEGA\nDANIELA ITZEL\nDOMICILIO\nCALLE ALAMEDA 120\nCOL LOMAS DE SAN JUAN 44100\nGUADALAJARA, JAL\nCLAVE DE ELECTOR MRVUDN91072314M123\nCURP MOVD910723MJCRGN05\nAÑO DE REGISTRO 2014 01\nFECHA DE NACIMIENTO 23/07/1991\nSEXO M\nSECCION 0817\nVIGENCIA 2032",
+          "repetidos": {}
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX2034519875<<0817112233445\n9107234M3212312MEX<01<<<<<<<<6\nMORALES<VEGA<<DANIELA<ITZEL<<<"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 210,
+        "estado": "PROCESADO_CON_DISCREPANCIAS",
+        "mensaje": "El documento se procesó, pero hay datos que se contradicen entre sí. Revisa 'validacion.discrepancias' antes de dar los datos por buenos.",
+        "frente": {
+          "apellido_paterno": "MORALES",
+          "apellido_materno": "VEGA",
+          "nombre": "DANIELA ITZEL",
+          "domicilio": {
+            "calle_numero": "CALLE ALAMEDA 120",
+            "colonia": "LOMAS DE SAN JUAN",
+            "codigo_postal": "44100",
+            "municipio_delegacion": "GUADALAJARA",
+            "estado": "JAL"
+          },
+          "clave_elector": "MRVUDN91072314M123",
+          "curp": "MOVD910723MJCRGN05",
+          "fecha_nacimiento": "1991-07-23",
+          "sexo": "M",
+          "anio_registro": "2014 01",
+          "seccion": "0817",
+          "numero_emision": "01",
+          "vigencia": "2032",
+          "pais": "MEXICO",
+          "formato_credencial": "nuevo",
+          "no_impresos": [
+            "estado_clave",
+            "municipio_clave",
+            "localidad_clave",
+            "anio_emision"
+          ]
+        },
+        "atras": {
+          "mrz": {
+            "lineas": [
+              "IDMEX2034519875<<0817112233445",
+              "9107234M3212312MEX<01<<<<<<<<6",
+              "MORALES<VEGA<<DANIELA<ITZEL<<<"
+            ],
+            "tipo_documento": "ID",
+            "pais_emisor": "MEX",
+            "cic": "203451987",
+            "seccion": "0817",
+            "identificador_ciudadano": "112233445",
+            "nacionalidad": "MEX",
+            "folio": "203451987",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "vigencia": "2032-12-31",
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombres": "DANIELA ITZEL",
+            "digitos_control": {
+              "cic": true,
+              "fecha_nacimiento": true,
+              "vigencia": true,
+              "compuesto": true
+            },
+            "integra": true,
+            "origen": "texto"
+          }
+        },
+        "validacion": {
+          "ok": false,
+          "completo": true,
+          "coincidencias": [
+            "MRZ (dígitos de control)",
+            "fecha_nacimiento (MRZ)",
+            "sexo (MRZ)",
+            "apellido_paterno (MRZ)",
+            "apellido_materno (MRZ)",
+            "nombre (MRZ)",
+            "vigencia (MRZ)",
+            "seccion (MRZ)",
+            "anio_registro, sufijo (MRZ)",
+            "fecha_nacimiento (CURP)",
+            "sexo (CURP)",
+            "curp (dígito verificador)",
+            "fecha_nacimiento (clave_elector)",
+            "sexo (clave_elector)",
+            "domicilio (código postal vs estado)"
+          ],
+          "discrepancias": [
+            "clave_elector vs CURP (iniciales): anverso 'MRVUDN' vs 'MRVGDN'"
+          ],
+          "sin_verificar": []
+        },
+        "avisos": [],
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 313
+        },
+        "clasificacion_atras": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 127
+        }
+      }
+    },
+    {
+      "id": "07_nombre_corregido_con_la_mrz",
+      "descripcion": "El OCR pegó una letra de más ('MORALESS'): la MRZ es íntegra y trae 'MORALES', se corrige y se avisa. Sale 211.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "MORALESS",
+            "apellido_materno": "VEGA",
+            "nombre": "DANIELA ITZEL",
+            "domicilio": {
+              "calle_numero": "CALLE ALAMEDA 120",
+              "colonia": "LOMAS DE SAN JUAN",
+              "codigo_postal": "44100",
+              "municipio_delegacion": "GUADALAJARA",
+              "estado": "JAL"
+            },
+            "clave_elector": "MRVGDN91072314M123",
+            "curp": "MOVD910723MJCRGN05",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "anio_registro": "2014 01",
+            "seccion": "0817",
+            "numero_emision": "01",
+            "vigencia": "2032",
+            "pais": "MEXICO"
+          },
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nMORALESS\nVEGA\nDANIELA ITZEL\nDOMICILIO\nCALLE ALAMEDA 120\nCOL LOMAS DE SAN JUAN 44100\nGUADALAJARA, JAL\nCLAVE DE ELECTOR MRVGDN91072314M123\nCURP MOVD910723MJCRGN05\nAÑO DE REGISTRO 2014 01\nFECHA DE NACIMIENTO 23/07/1991\nSEXO M\nSECCION 0817\nVIGENCIA 2032",
+          "repetidos": {}
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX2034519875<<0817112233445\n9107234M3212312MEX<01<<<<<<<<6\nMORALES<VEGA<<DANIELA<ITZEL<<<"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 211,
+        "estado": "PROCESADO_CON_AVISOS",
+        "mensaje": "El documento se procesó y nada se contradijo, pero hay algo que requiere revisión humana. Revisa 'avisos'.",
+        "frente": {
+          "apellido_paterno": "MORALES",
+          "apellido_materno": "VEGA",
+          "nombre": "DANIELA ITZEL",
+          "domicilio": {
+            "calle_numero": "CALLE ALAMEDA 120",
+            "colonia": "LOMAS DE SAN JUAN",
+            "codigo_postal": "44100",
+            "municipio_delegacion": "GUADALAJARA",
+            "estado": "JAL"
+          },
+          "clave_elector": "MRVGDN91072314M123",
+          "curp": "MOVD910723MJCRGN05",
+          "fecha_nacimiento": "1991-07-23",
+          "sexo": "M",
+          "anio_registro": "2014 01",
+          "seccion": "0817",
+          "numero_emision": "01",
+          "vigencia": "2032",
+          "pais": "MEXICO",
+          "formato_credencial": "nuevo",
+          "no_impresos": [
+            "estado_clave",
+            "municipio_clave",
+            "localidad_clave",
+            "anio_emision"
+          ]
+        },
+        "atras": {
+          "mrz": {
+            "lineas": [
+              "IDMEX2034519875<<0817112233445",
+              "9107234M3212312MEX<01<<<<<<<<6",
+              "MORALES<VEGA<<DANIELA<ITZEL<<<"
+            ],
+            "tipo_documento": "ID",
+            "pais_emisor": "MEX",
+            "cic": "203451987",
+            "seccion": "0817",
+            "identificador_ciudadano": "112233445",
+            "nacionalidad": "MEX",
+            "folio": "203451987",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "vigencia": "2032-12-31",
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombres": "DANIELA ITZEL",
+            "digitos_control": {
+              "cic": true,
+              "fecha_nacimiento": true,
+              "vigencia": true,
+              "compuesto": true
+            },
+            "integra": true,
+            "origen": "texto"
+          }
+        },
+        "validacion": {
+          "ok": true,
+          "completo": true,
+          "coincidencias": [
+            "MRZ (dígitos de control)",
+            "fecha_nacimiento (MRZ)",
+            "sexo (MRZ)",
+            "apellido_materno (MRZ)",
+            "nombre (MRZ)",
+            "vigencia (MRZ)",
+            "seccion (MRZ)",
+            "anio_registro, sufijo (MRZ)",
+            "fecha_nacimiento (CURP)",
+            "sexo (CURP)",
+            "curp (dígito verificador)",
+            "clave_elector vs CURP (iniciales)",
+            "fecha_nacimiento (clave_elector)",
+            "sexo (clave_elector)",
+            "domicilio (código postal vs estado)"
+          ],
+          "discrepancias": [],
+          "sin_verificar": []
+        },
+        "avisos": [
+          "frente.apellido_paterno corregido con la MRZ: se leyó 'MORALESS' y la MRZ trae 'MORALES'"
+        ],
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 314
+        },
+        "clasificacion_atras": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 127
+        }
+      }
+    },
+    {
+      "id": "08_mrz_corrupta",
+      "descripcion": "Un dígito de control de la MRZ no cuadra: se reporta la corrupción UNA vez y se deja de contrastar contra ella. Sale 210.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombre": "DANIELA ITZEL",
+            "domicilio": {
+              "calle_numero": "CALLE ALAMEDA 120",
+              "colonia": "LOMAS DE SAN JUAN",
+              "codigo_postal": "44100",
+              "municipio_delegacion": "GUADALAJARA",
+              "estado": "JAL"
+            },
+            "clave_elector": "MRVGDN91072314M123",
+            "curp": "MOVD910723MJCRGN05",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "anio_registro": "2014 01",
+            "seccion": "0817",
+            "numero_emision": "01",
+            "vigencia": "2032",
+            "pais": "MEXICO"
+          },
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nMORALES\nVEGA\nDANIELA ITZEL\nDOMICILIO\nCALLE ALAMEDA 120\nCOL LOMAS DE SAN JUAN 44100\nGUADALAJARA, JAL\nCLAVE DE ELECTOR MRVGDN91072314M123\nCURP MOVD910723MJCRGN05\nAÑO DE REGISTRO 2014 01\nFECHA DE NACIMIENTO 23/07/1991\nSEXO M\nSECCION 0817\nVIGENCIA 2032",
+          "repetidos": {}
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX2034519875<<0817112233445\n9107235M3212312MEX<01<<<<<<<<6\nMORALES<VEGA<<DANIELA<ITZEL<<<"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 210,
+        "estado": "PROCESADO_CON_DISCREPANCIAS",
+        "mensaje": "El documento se procesó, pero hay datos que se contradicen entre sí. Revisa 'validacion.discrepancias' antes de dar los datos por buenos.",
+        "frente": {
+          "apellido_paterno": "MORALES",
+          "apellido_materno": "VEGA",
+          "nombre": "DANIELA ITZEL",
+          "domicilio": {
+            "calle_numero": "CALLE ALAMEDA 120",
+            "colonia": "LOMAS DE SAN JUAN",
+            "codigo_postal": "44100",
+            "municipio_delegacion": "GUADALAJARA",
+            "estado": "JAL"
+          },
+          "clave_elector": "MRVGDN91072314M123",
+          "curp": "MOVD910723MJCRGN05",
+          "fecha_nacimiento": "1991-07-23",
+          "sexo": "M",
+          "anio_registro": "2014 01",
+          "seccion": "0817",
+          "numero_emision": "01",
+          "vigencia": "2032",
+          "pais": "MEXICO",
+          "formato_credencial": "nuevo",
+          "no_impresos": [
+            "estado_clave",
+            "municipio_clave",
+            "localidad_clave",
+            "anio_emision"
+          ]
+        },
+        "atras": {
+          "mrz": {
+            "lineas": [
+              "IDMEX2034519875<<0817112233445",
+              "9107235M3212312MEX<01<<<<<<<<6",
+              "MORALES<VEGA<<DANIELA<ITZEL<<<"
+            ],
+            "tipo_documento": "ID",
+            "pais_emisor": "MEX",
+            "cic": "203451987",
+            "seccion": "0817",
+            "identificador_ciudadano": "112233445",
+            "nacionalidad": "MEX",
+            "folio": "203451987",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "vigencia": "2032-12-31",
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombres": "DANIELA ITZEL",
+            "digitos_control": {
+              "cic": true,
+              "fecha_nacimiento": false,
+              "vigencia": true,
+              "compuesto": false
+            },
+            "integra": false,
+            "origen": "texto"
+          }
+        },
+        "validacion": {
+          "ok": false,
+          "completo": false,
+          "coincidencias": [
+            "fecha_nacimiento (CURP)",
+            "sexo (CURP)",
+            "curp (dígito verificador)",
+            "clave_elector vs CURP (iniciales)",
+            "fecha_nacimiento (clave_elector)",
+            "sexo (clave_elector)",
+            "domicilio (código postal vs estado)"
+          ],
+          "discrepancias": [
+            "MRZ corrupta: fallan los dígitos de control de fecha_nacimiento, compuesto; no se pudo contrastar el anverso contra el reverso"
+          ],
+          "sin_verificar": [
+            "todas las comprobaciones contra la MRZ"
+          ]
+        },
+        "avisos": [],
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 313
+        },
+        "clasificacion_atras": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 127
+        }
+      }
+    },
+    {
+      "id": "09_reverso_de_otra_persona",
+      "descripcion": "El reverso es de otra persona: todo lo que se contrasta contra la MRZ discrepa. Sale 210.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombre": "DANIELA ITZEL",
+            "domicilio": {
+              "calle_numero": "CALLE ALAMEDA 120",
+              "colonia": "LOMAS DE SAN JUAN",
+              "codigo_postal": "44100",
+              "municipio_delegacion": "GUADALAJARA",
+              "estado": "JAL"
+            },
+            "clave_elector": "MRVGDN91072314M123",
+            "curp": "MOVD910723MJCRGN05",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "anio_registro": "2014 01",
+            "seccion": "0817",
+            "numero_emision": "01",
+            "vigencia": "2032",
+            "pais": "MEXICO"
+          },
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nMORALES\nVEGA\nDANIELA ITZEL\nDOMICILIO\nCALLE ALAMEDA 120\nCOL LOMAS DE SAN JUAN 44100\nGUADALAJARA, JAL\nCLAVE DE ELECTOR MRVGDN91072314M123\nCURP MOVD910723MJCRGN05\nAÑO DE REGISTRO 2014 01\nFECHA DE NACIMIENTO 23/07/1991\nSEXO M\nSECCION 0817\nVIGENCIA 2032",
+          "repetidos": {}
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX3182746508<<4210556677889\n8511043H3012316MEX<02<<<<<<<<6\nGOMEZ<MARTINEZ<<JOSE<LUIS<<<<<"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 210,
+        "estado": "PROCESADO_CON_DISCREPANCIAS",
+        "mensaje": "El documento se procesó, pero hay datos que se contradicen entre sí. Revisa 'validacion.discrepancias' antes de dar los datos por buenos.",
+        "frente": {
+          "apellido_paterno": "MORALES",
+          "apellido_materno": "VEGA",
+          "nombre": "DANIELA ITZEL",
+          "domicilio": {
+            "calle_numero": "CALLE ALAMEDA 120",
+            "colonia": "LOMAS DE SAN JUAN",
+            "codigo_postal": "44100",
+            "municipio_delegacion": "GUADALAJARA",
+            "estado": "JAL"
+          },
+          "clave_elector": "MRVGDN91072314M123",
+          "curp": "MOVD910723MJCRGN05",
+          "fecha_nacimiento": "1991-07-23",
+          "sexo": "M",
+          "anio_registro": "2014 01",
+          "seccion": "0817",
+          "numero_emision": "01",
+          "vigencia": "2032",
+          "pais": "MEXICO",
+          "formato_credencial": "nuevo",
+          "no_impresos": [
+            "estado_clave",
+            "municipio_clave",
+            "localidad_clave",
+            "anio_emision"
+          ]
+        },
+        "atras": {
+          "mrz": {
+            "lineas": [
+              "IDMEX3182746508<<4210556677889",
+              "8511043H3012316MEX<02<<<<<<<<6",
+              "GOMEZ<MARTINEZ<<JOSE<LUIS<<<<<"
+            ],
+            "tipo_documento": "ID",
+            "pais_emisor": "MEX",
+            "cic": "318274650",
+            "seccion": "4210",
+            "identificador_ciudadano": "556677889",
+            "nacionalidad": "MEX",
+            "folio": "318274650",
+            "fecha_nacimiento": "1985-11-04",
+            "sexo": "H",
+            "vigencia": "2030-12-31",
+            "apellido_paterno": "GOMEZ",
+            "apellido_materno": "MARTINEZ",
+            "nombres": "JOSE LUIS",
+            "digitos_control": {
+              "cic": true,
+              "fecha_nacimiento": true,
+              "vigencia": true,
+              "compuesto": true
+            },
+            "integra": true,
+            "origen": "texto"
+          }
+        },
+        "validacion": {
+          "ok": false,
+          "completo": true,
+          "coincidencias": [
+            "MRZ (dígitos de control)",
+            "fecha_nacimiento (CURP)",
+            "sexo (CURP)",
+            "curp (dígito verificador)",
+            "clave_elector vs CURP (iniciales)",
+            "fecha_nacimiento (clave_elector)",
+            "sexo (clave_elector)",
+            "domicilio (código postal vs estado)"
+          ],
+          "discrepancias": [
+            "fecha_nacimiento (MRZ): anverso '1991-07-23' vs '1985-11-04'",
+            "sexo (MRZ): anverso 'M' vs 'H'",
+            "apellido_paterno (MRZ): anverso 'MORALES' vs 'GOMEZ'",
+            "apellido_materno (MRZ): anverso 'VEGA' vs 'MARTINEZ'",
+            "nombre (MRZ): anverso 'DANIELA ITZEL' vs 'JOSE LUIS'",
+            "vigencia (MRZ): anverso '2032' vs '2030'",
+            "seccion (MRZ): anverso '0817' vs '4210'",
+            "anio_registro: el sufijo '01' no cuadra con el de la MRZ '02'"
+          ],
+          "sin_verificar": []
+        },
+        "avisos": [],
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 313
+        },
+        "clasificacion_atras": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 127
+        }
+      }
+    },
+    {
+      "id": "10_sin_curp",
+      "descripcion": "El anverso no trae CURP legible: no hay con qué hacer los cruces contra ella. Sale 212.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombre": "DANIELA ITZEL",
+            "domicilio": {
+              "calle_numero": "CALLE ALAMEDA 120",
+              "colonia": "LOMAS DE SAN JUAN",
+              "codigo_postal": "44100",
+              "municipio_delegacion": "GUADALAJARA",
+              "estado": "JAL"
+            },
+            "clave_elector": "MRVGDN91072314M123",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "anio_registro": "2014 01",
+            "seccion": "0817",
+            "numero_emision": "01",
+            "vigencia": "2032",
+            "pais": "MEXICO"
+          },
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nMORALES\nVEGA\nDANIELA ITZEL\nDOMICILIO\nCALLE ALAMEDA 120\nCOL LOMAS DE SAN JUAN 44100\nGUADALAJARA, JAL\nCLAVE DE ELECTOR MRVGDN91072314M123\nAÑO DE REGISTRO 2014 01\nFECHA DE NACIMIENTO 23/07/1991\nSEXO M\nSECCION 0817\nVIGENCIA 2032",
+          "repetidos": {}
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX2034519875<<0817112233445\n9107234M3212312MEX<01<<<<<<<<6\nMORALES<VEGA<<DANIELA<ITZEL<<<"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 212,
+        "estado": "PROCESADO_INCOMPLETO",
+        "mensaje": "El documento se procesó y nada se contradijo, pero quedaron comprobaciones sin poder realizarse. Revisa 'validacion.sin_verificar'.",
+        "frente": {
+          "apellido_paterno": "MORALES",
+          "apellido_materno": "VEGA",
+          "nombre": "DANIELA ITZEL",
+          "domicilio": {
+            "calle_numero": "CALLE ALAMEDA 120",
+            "colonia": "LOMAS DE SAN JUAN",
+            "codigo_postal": "44100",
+            "municipio_delegacion": "GUADALAJARA",
+            "estado": "JAL"
+          },
+          "clave_elector": "MRVGDN91072314M123",
+          "fecha_nacimiento": "1991-07-23",
+          "sexo": "M",
+          "anio_registro": "2014 01",
+          "seccion": "0817",
+          "numero_emision": "01",
+          "vigencia": "2032",
+          "pais": "MEXICO",
+          "formato_credencial": "nuevo",
+          "no_impresos": [
+            "estado_clave",
+            "municipio_clave",
+            "localidad_clave",
+            "anio_emision"
+          ]
+        },
+        "atras": {
+          "mrz": {
+            "lineas": [
+              "IDMEX2034519875<<0817112233445",
+              "9107234M3212312MEX<01<<<<<<<<6",
+              "MORALES<VEGA<<DANIELA<ITZEL<<<"
+            ],
+            "tipo_documento": "ID",
+            "pais_emisor": "MEX",
+            "cic": "203451987",
+            "seccion": "0817",
+            "identificador_ciudadano": "112233445",
+            "nacionalidad": "MEX",
+            "folio": "203451987",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "vigencia": "2032-12-31",
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombres": "DANIELA ITZEL",
+            "digitos_control": {
+              "cic": true,
+              "fecha_nacimiento": true,
+              "vigencia": true,
+              "compuesto": true
+            },
+            "integra": true,
+            "origen": "texto"
+          }
+        },
+        "validacion": {
+          "ok": true,
+          "completo": false,
+          "coincidencias": [
+            "MRZ (dígitos de control)",
+            "fecha_nacimiento (MRZ)",
+            "sexo (MRZ)",
+            "apellido_paterno (MRZ)",
+            "apellido_materno (MRZ)",
+            "nombre (MRZ)",
+            "vigencia (MRZ)",
+            "seccion (MRZ)",
+            "anio_registro, sufijo (MRZ)",
+            "clave_elector vs nombre (iniciales)",
+            "fecha_nacimiento (clave_elector)",
+            "sexo (clave_elector)",
+            "domicilio (código postal vs estado)"
+          ],
+          "discrepancias": [],
+          "sin_verificar": [
+            "CURP (formato inválido: 'ausente')"
+          ]
+        },
+        "avisos": [],
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 289
+        },
+        "clasificacion_atras": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 127
+        }
+      }
+    },
+    {
+      "id": "11_codigo_postal_no_corresponde_al_estado",
+      "descripcion": "El código postal 44100 es de Jalisco y el domicilio dice CDMX. Sale 210.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombre": "DANIELA ITZEL",
+            "domicilio": {
+              "calle_numero": "CALLE ALAMEDA 120",
+              "colonia": "LOMAS DE SAN JUAN",
+              "codigo_postal": "44100",
+              "municipio_delegacion": "GUADALAJARA",
+              "estado": "CDMX"
+            },
+            "clave_elector": "MRVGDN91072314M123",
+            "curp": "MOVD910723MJCRGN05",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "anio_registro": "2014 01",
+            "seccion": "0817",
+            "numero_emision": "01",
+            "vigencia": "2032",
+            "pais": "MEXICO"
+          },
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nMORALES\nVEGA\nDANIELA ITZEL\nDOMICILIO\nCALLE ALAMEDA 120\nCOL LOMAS DE SAN JUAN 44100\nGUADALAJARA, CDMX\nCLAVE DE ELECTOR MRVGDN91072314M123\nCURP MOVD910723MJCRGN05\nAÑO DE REGISTRO 2014 01\nFECHA DE NACIMIENTO 23/07/1991\nSEXO M\nSECCION 0817\nVIGENCIA 2032",
+          "repetidos": {}
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX2034519875<<0817112233445\n9107234M3212312MEX<01<<<<<<<<6\nMORALES<VEGA<<DANIELA<ITZEL<<<"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 210,
+        "estado": "PROCESADO_CON_DISCREPANCIAS",
+        "mensaje": "El documento se procesó, pero hay datos que se contradicen entre sí. Revisa 'validacion.discrepancias' antes de dar los datos por buenos.",
+        "frente": {
+          "apellido_paterno": "MORALES",
+          "apellido_materno": "VEGA",
+          "nombre": "DANIELA ITZEL",
+          "domicilio": {
+            "calle_numero": "CALLE ALAMEDA 120",
+            "colonia": "LOMAS DE SAN JUAN",
+            "codigo_postal": "44100",
+            "municipio_delegacion": "GUADALAJARA",
+            "estado": "CDMX"
+          },
+          "clave_elector": "MRVGDN91072314M123",
+          "curp": "MOVD910723MJCRGN05",
+          "fecha_nacimiento": "1991-07-23",
+          "sexo": "M",
+          "anio_registro": "2014 01",
+          "seccion": "0817",
+          "numero_emision": "01",
+          "vigencia": "2032",
+          "pais": "MEXICO",
+          "formato_credencial": "nuevo",
+          "no_impresos": [
+            "estado_clave",
+            "municipio_clave",
+            "localidad_clave",
+            "anio_emision"
+          ]
+        },
+        "atras": {
+          "mrz": {
+            "lineas": [
+              "IDMEX2034519875<<0817112233445",
+              "9107234M3212312MEX<01<<<<<<<<6",
+              "MORALES<VEGA<<DANIELA<ITZEL<<<"
+            ],
+            "tipo_documento": "ID",
+            "pais_emisor": "MEX",
+            "cic": "203451987",
+            "seccion": "0817",
+            "identificador_ciudadano": "112233445",
+            "nacionalidad": "MEX",
+            "folio": "203451987",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "vigencia": "2032-12-31",
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombres": "DANIELA ITZEL",
+            "digitos_control": {
+              "cic": true,
+              "fecha_nacimiento": true,
+              "vigencia": true,
+              "compuesto": true
+            },
+            "integra": true,
+            "origen": "texto"
+          }
+        },
+        "validacion": {
+          "ok": false,
+          "completo": true,
+          "coincidencias": [
+            "MRZ (dígitos de control)",
+            "fecha_nacimiento (MRZ)",
+            "sexo (MRZ)",
+            "apellido_paterno (MRZ)",
+            "apellido_materno (MRZ)",
+            "nombre (MRZ)",
+            "vigencia (MRZ)",
+            "seccion (MRZ)",
+            "anio_registro, sufijo (MRZ)",
+            "fecha_nacimiento (CURP)",
+            "sexo (CURP)",
+            "curp (dígito verificador)",
+            "clave_elector vs CURP (iniciales)",
+            "fecha_nacimiento (clave_elector)",
+            "sexo (clave_elector)"
+          ],
+          "discrepancias": [
+            "domicilio: el código postal '44100' no corresponde al estado 'CDMX'"
+          ],
+          "sin_verificar": []
+        },
+        "avisos": [],
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 314
+        },
+        "clasificacion_atras": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 127
+        }
+      }
+    },
+    {
+      "id": "12_pdf_con_mas_de_un_documento",
+      "descripcion": "El motor devolvió dos bloques 'domicilio' (un PDF con más de una identidad): se conserva el primero y se avisa. Sale 211.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombre": "DANIELA ITZEL",
+            "domicilio": {
+              "calle_numero": "CALLE ALAMEDA 120",
+              "colonia": "LOMAS DE SAN JUAN",
+              "codigo_postal": "44100",
+              "municipio_delegacion": "GUADALAJARA",
+              "estado": "JAL"
+            },
+            "clave_elector": "MRVGDN91072314M123",
+            "curp": "MOVD910723MJCRGN05",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "anio_registro": "2014 01",
+            "seccion": "0817",
+            "numero_emision": "01",
+            "vigencia": "2032",
+            "pais": "MEXICO"
+          },
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nMORALES\nVEGA\nDANIELA ITZEL\nDOMICILIO\nCALLE ALAMEDA 120\nCOL LOMAS DE SAN JUAN 44100\nGUADALAJARA, JAL\nCLAVE DE ELECTOR MRVGDN91072314M123\nCURP MOVD910723MJCRGN05\nAÑO DE REGISTRO 2014 01\nFECHA DE NACIMIENTO 23/07/1991\nSEXO M\nSECCION 0817\nVIGENCIA 2032",
+          "repetidos": {
+            "domicilio": 2
+          }
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX2034519875<<0817112233445\n9107234M3212312MEX<01<<<<<<<<6\nMORALES<VEGA<<DANIELA<ITZEL<<<"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 211,
+        "estado": "PROCESADO_CON_AVISOS",
+        "mensaje": "El documento se procesó y nada se contradijo, pero hay algo que requiere revisión humana. Revisa 'avisos'.",
+        "frente": {
+          "apellido_paterno": "MORALES",
+          "apellido_materno": "VEGA",
+          "nombre": "DANIELA ITZEL",
+          "domicilio": {
+            "calle_numero": "CALLE ALAMEDA 120",
+            "colonia": "LOMAS DE SAN JUAN",
+            "codigo_postal": "44100",
+            "municipio_delegacion": "GUADALAJARA",
+            "estado": "JAL"
+          },
+          "clave_elector": "MRVGDN91072314M123",
+          "curp": "MOVD910723MJCRGN05",
+          "fecha_nacimiento": "1991-07-23",
+          "sexo": "M",
+          "anio_registro": "2014 01",
+          "seccion": "0817",
+          "numero_emision": "01",
+          "vigencia": "2032",
+          "pais": "MEXICO",
+          "formato_credencial": "nuevo",
+          "no_impresos": [
+            "estado_clave",
+            "municipio_clave",
+            "localidad_clave",
+            "anio_emision"
+          ]
+        },
+        "atras": {
+          "mrz": {
+            "lineas": [
+              "IDMEX2034519875<<0817112233445",
+              "9107234M3212312MEX<01<<<<<<<<6",
+              "MORALES<VEGA<<DANIELA<ITZEL<<<"
+            ],
+            "tipo_documento": "ID",
+            "pais_emisor": "MEX",
+            "cic": "203451987",
+            "seccion": "0817",
+            "identificador_ciudadano": "112233445",
+            "nacionalidad": "MEX",
+            "folio": "203451987",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "vigencia": "2032-12-31",
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombres": "DANIELA ITZEL",
+            "digitos_control": {
+              "cic": true,
+              "fecha_nacimiento": true,
+              "vigencia": true,
+              "compuesto": true
+            },
+            "integra": true,
+            "origen": "texto"
+          }
+        },
+        "validacion": {
+          "ok": true,
+          "completo": true,
+          "coincidencias": [
+            "MRZ (dígitos de control)",
+            "fecha_nacimiento (MRZ)",
+            "sexo (MRZ)",
+            "apellido_paterno (MRZ)",
+            "apellido_materno (MRZ)",
+            "nombre (MRZ)",
+            "vigencia (MRZ)",
+            "seccion (MRZ)",
+            "anio_registro, sufijo (MRZ)",
+            "fecha_nacimiento (CURP)",
+            "sexo (CURP)",
+            "curp (dígito verificador)",
+            "clave_elector vs CURP (iniciales)",
+            "fecha_nacimiento (clave_elector)",
+            "sexo (clave_elector)",
+            "domicilio (código postal vs estado)"
+          ],
+          "discrepancias": [],
+          "sin_verificar": []
+        },
+        "avisos": [
+          "el PDF contiene 2 bloques 'domicilio': se conservó el primero, revisa que el documento no traiga más de una identidad"
+        ],
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 313
+        },
+        "clasificacion_atras": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 127
+        }
+      }
+    },
+    {
+      "id": "13_valor_que_no_aparece_en_el_texto",
+      "descripcion": "El nombre extraído no aparece literal en el texto que leyó el OCR (el motor lo compuso): se avisa. Sale 211.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombre": "DANIELA ITZEL",
+            "domicilio": {
+              "calle_numero": "CALLE ALAMEDA 120",
+              "colonia": "LOMAS DE SAN JUAN",
+              "codigo_postal": "44100",
+              "municipio_delegacion": "GUADALAJARA",
+              "estado": "JAL"
+            },
+            "clave_elector": "MRVGDN91072314M123",
+            "curp": "MOVD910723MJCRGN05",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "anio_registro": "2014 01",
+            "seccion": "0817",
+            "numero_emision": "01",
+            "vigencia": "2032",
+            "pais": "MEXICO"
+          },
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nMORALES\nVEGA\nDANIELA ITZEI\nDOMICILIO\nCALLE ALAMEDA 120\nCOL LOMAS DE SAN JUAN 44100\nGUADALAJARA, JAL\nCLAVE DE ELECTOR MRVGDN91072314M123\nCURP MOVD910723MJCRGN05\nAÑO DE REGISTRO 2014 01\nFECHA DE NACIMIENTO 23/07/1991\nSEXO M\nSECCION 0817\nVIGENCIA 2032",
+          "repetidos": {}
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX2034519875<<0817112233445\n9107234M3212312MEX<01<<<<<<<<6\nMORALES<VEGA<<DANIELA<ITZEL<<<"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 211,
+        "estado": "PROCESADO_CON_AVISOS",
+        "mensaje": "El documento se procesó y nada se contradijo, pero hay algo que requiere revisión humana. Revisa 'avisos'.",
+        "frente": {
+          "apellido_paterno": "MORALES",
+          "apellido_materno": "VEGA",
+          "nombre": "DANIELA ITZEL",
+          "domicilio": {
+            "calle_numero": "CALLE ALAMEDA 120",
+            "colonia": "LOMAS DE SAN JUAN",
+            "codigo_postal": "44100",
+            "municipio_delegacion": "GUADALAJARA",
+            "estado": "JAL"
+          },
+          "clave_elector": "MRVGDN91072314M123",
+          "curp": "MOVD910723MJCRGN05",
+          "fecha_nacimiento": "1991-07-23",
+          "sexo": "M",
+          "anio_registro": "2014 01",
+          "seccion": "0817",
+          "numero_emision": "01",
+          "vigencia": "2032",
+          "pais": "MEXICO",
+          "formato_credencial": "nuevo",
+          "no_impresos": [
+            "estado_clave",
+            "municipio_clave",
+            "localidad_clave",
+            "anio_emision"
+          ]
+        },
+        "atras": {
+          "mrz": {
+            "lineas": [
+              "IDMEX2034519875<<0817112233445",
+              "9107234M3212312MEX<01<<<<<<<<6",
+              "MORALES<VEGA<<DANIELA<ITZEL<<<"
+            ],
+            "tipo_documento": "ID",
+            "pais_emisor": "MEX",
+            "cic": "203451987",
+            "seccion": "0817",
+            "identificador_ciudadano": "112233445",
+            "nacionalidad": "MEX",
+            "folio": "203451987",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "vigencia": "2032-12-31",
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombres": "DANIELA ITZEL",
+            "digitos_control": {
+              "cic": true,
+              "fecha_nacimiento": true,
+              "vigencia": true,
+              "compuesto": true
+            },
+            "integra": true,
+            "origen": "texto"
+          }
+        },
+        "validacion": {
+          "ok": true,
+          "completo": true,
+          "coincidencias": [
+            "MRZ (dígitos de control)",
+            "fecha_nacimiento (MRZ)",
+            "sexo (MRZ)",
+            "apellido_paterno (MRZ)",
+            "apellido_materno (MRZ)",
+            "nombre (MRZ)",
+            "vigencia (MRZ)",
+            "seccion (MRZ)",
+            "anio_registro, sufijo (MRZ)",
+            "fecha_nacimiento (CURP)",
+            "sexo (CURP)",
+            "curp (dígito verificador)",
+            "clave_elector vs CURP (iniciales)",
+            "fecha_nacimiento (clave_elector)",
+            "sexo (clave_elector)",
+            "domicilio (código postal vs estado)"
+          ],
+          "discrepancias": [],
+          "sin_verificar": []
+        },
+        "avisos": [
+          "frente.nombre='DANIELA ITZEL' no aparece literal en el texto leído"
+        ],
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 313
+        },
+        "clasificacion_atras": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 127
+        }
+      }
+    },
+    {
+      "id": "14_atras_sin_mrz",
+      "descripcion": "En `atras` mandaron otra copia del frente: no hay MRZ. Responde 227 (`atras` es el campo con problema).",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombre": "DANIELA ITZEL",
+            "domicilio": {
+              "calle_numero": "CALLE ALAMEDA 120",
+              "colonia": "LOMAS DE SAN JUAN",
+              "codigo_postal": "44100",
+              "municipio_delegacion": "GUADALAJARA",
+              "estado": "JAL"
+            },
+            "clave_elector": "MRVGDN91072314M123",
+            "curp": "MOVD910723MJCRGN05",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "anio_registro": "2014 01",
+            "seccion": "0817",
+            "numero_emision": "01",
+            "vigencia": "2032",
+            "pais": "MEXICO"
+          },
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nMORALES\nVEGA\nDANIELA ITZEL\nDOMICILIO\nCALLE ALAMEDA 120\nCOL LOMAS DE SAN JUAN 44100\nGUADALAJARA, JAL\nCLAVE DE ELECTOR MRVGDN91072314M123\nCURP MOVD910723MJCRGN05\nAÑO DE REGISTRO 2014 01\nFECHA DE NACIMIENTO 23/07/1991\nSEXO M\nSECCION 0817\nVIGENCIA 2032"
+        },
+        "atras": {
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nMORALES\nVEGA\nDANIELA ITZEL\nDOMICILIO\nCALLE ALAMEDA 120\nCOL LOMAS DE SAN JUAN 44100\nGUADALAJARA, JAL\nCLAVE DE ELECTOR MRVGDN91072314M123\nCURP MOVD910723MJCRGN05\nAÑO DE REGISTRO 2014 01\nFECHA DE NACIMIENTO 23/07/1991\nSEXO M\nSECCION 0817\nVIGENCIA 2032"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [
+        "clasificacion"
+      ],
+      "salida_esperada": {
+        "codigo": 227,
+        "estado": "NO_ES_REVERSO_INE",
+        "mensaje": "Archivo 'atras': No se encontró la zona de lectura mecánica (MRZ) del reverso de la INE. Verifica que el archivo sea el reverso de la credencial y no el frente.",
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 313
+        }
+      }
+    },
+    {
+      "id": "15_frente_es_un_reverso",
+      "descripcion": "En `frente` mandaron el reverso: trae MRZ pero ningún dato del anverso. Responde 228.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "MORALES",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M"
+          },
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX2034519875<<0817112233445\n9107234M3212312MEX<01<<<<<<<<6\nMORALES<VEGA<<DANIELA<ITZEL<<<"
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX2034519875<<0817112233445\n9107234M3212312MEX<01<<<<<<<<6\nMORALES<VEGA<<DANIELA<ITZEL<<<"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 228,
+        "estado": "ES_REVERSO_INE",
+        "mensaje": "Archivo 'frente': El archivo enviado como anverso es el reverso de la INE: trae la zona de lectura mecánica (MRZ) pero ningún dato del frente. Envía el frente, o usa el endpoint del reverso.",
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 127
+        }
+      }
+    },
+    {
+      "id": "16_frente_no_es_ine",
+      "descripcion": "El `frente` es una factura: el clasificador lo rechaza antes de extraer. Responde 220.",
+      "entrada": {
+        "frente": {
+          "texto_ocr": "FACTURA 0001  Total a pagar $1,250.00  Cliente ACME SA de CV",
+          "clasificacion": {
+            "categoria": "otro",
+            "confianza": 0.9999,
+            "caracteres_leidos": 60
+          }
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX2034519875<<0817112233445\n9107234M3212312MEX<01<<<<<<<<6\nMORALES<VEGA<<DANIELA<ITZEL<<<"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 220,
+        "estado": "NO_ES_INE",
+        "mensaje": "Archivo 'frente': El documento no es una credencial para votar (INE). No se extrajo ningún dato.",
+        "clasificacion": {
+          "categoria": "otro",
+          "confianza": 0.9999,
+          "caracteres_leidos": 60
+        }
+      }
+    },
+    {
+      "id": "17_frente_en_blanco",
+      "descripcion": "El `frente` viene en blanco (0 caracteres leídos). Responde 221.",
+      "entrada": {
+        "frente": {
+          "texto_ocr": "",
+          "clasificacion": {
+            "categoria": "hoja_en_blanco",
+            "confianza": null,
+            "caracteres_leidos": 0
+          }
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX2034519875<<0817112233445\n9107234M3212312MEX<01<<<<<<<<6\nMORALES<VEGA<<DANIELA<ITZEL<<<"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 221,
+        "estado": "HOJA_EN_BLANCO",
+        "mensaje": "Archivo 'frente': El documento viene en blanco o ilegible: no se leyó ningún texto.",
+        "clasificacion": {
+          "categoria": "hoja_en_blanco",
+          "confianza": null,
+          "caracteres_leidos": 0
+        }
+      }
+    },
+    {
+      "id": "18_atras_no_es_ine",
+      "descripcion": "El `atras` es una factura. Responde 220 con el mensaje prefijado por el campo.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombre": "DANIELA ITZEL",
+            "domicilio": {
+              "calle_numero": "CALLE ALAMEDA 120",
+              "colonia": "LOMAS DE SAN JUAN",
+              "codigo_postal": "44100",
+              "municipio_delegacion": "GUADALAJARA",
+              "estado": "JAL"
+            },
+            "clave_elector": "MRVGDN91072314M123",
+            "curp": "MOVD910723MJCRGN05",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "anio_registro": "2014 01",
+            "seccion": "0817",
+            "numero_emision": "01",
+            "vigencia": "2032",
+            "pais": "MEXICO"
+          },
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nMORALES\nVEGA\nDANIELA ITZEL\nDOMICILIO\nCALLE ALAMEDA 120\nCOL LOMAS DE SAN JUAN 44100\nGUADALAJARA, JAL\nCLAVE DE ELECTOR MRVGDN91072314M123\nCURP MOVD910723MJCRGN05\nAÑO DE REGISTRO 2014 01\nFECHA DE NACIMIENTO 23/07/1991\nSEXO M\nSECCION 0817\nVIGENCIA 2032"
+        },
+        "atras": {
+          "texto_ocr": "FACTURA 0001  Total a pagar $1,250.00  Cliente ACME SA de CV",
+          "clasificacion": {
+            "categoria": "otro",
+            "confianza": 0.9999,
+            "caracteres_leidos": 60
+          }
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 220,
+        "estado": "NO_ES_INE",
+        "mensaje": "Archivo 'atras': El documento no es una credencial para votar (INE). No se extrajo ningún dato.",
+        "clasificacion": {
+          "categoria": "otro",
+          "confianza": 0.9999,
+          "caracteres_leidos": 60
+        }
+      }
+    },
+    {
+      "id": "19_tipo_de_archivo_no_soportado",
+      "descripcion": "El `frente` se declara como text/plain. HTTP 400.",
+      "entrada": {
+        "frente": {
+          "tipo_declarado": "text/plain",
+          "contenido": "texto"
+        },
+        "atras": {
+          "tipo_declarado": "image/png",
+          "contenido": "imagen válida"
+        }
+      },
+      "http_status": 400,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 400,
+        "estado": "ARCHIVO_NO_SOPORTADO",
+        "mensaje": "Archivo 'frente': Tipo de archivo no soportado: text/plain. Permitidos: application/pdf, image/jpeg, image/png, image/tiff, image/webp."
+      }
+    },
+    {
+      "id": "20_archivo_vacio",
+      "descripcion": "El `atras` llega vacío (0 bytes). Responde 222.",
+      "entrada": {
+        "frente": {
+          "tipo_declarado": "image/png",
+          "contenido": "imagen válida"
+        },
+        "atras": {
+          "tipo_declarado": "image/png",
+          "contenido": "0 bytes"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 222,
+        "estado": "ARCHIVO_CORRUPTO",
+        "mensaje": "Archivo 'atras': El archivo llegó vacío (0 bytes)."
+      }
+    },
+    {
+      "id": "21_formato_no_reconocido",
+      "descripcion": "El `frente` dice ser PDF pero sus bytes no lo son. Responde 222.",
+      "entrada": {
+        "frente": {
+          "tipo_declarado": "application/pdf",
+          "contenido": "los bytes 'no soy un pdf'"
+        },
+        "atras": {
+          "tipo_declarado": "image/png",
+          "contenido": "imagen válida"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 222,
+        "estado": "ARCHIVO_CORRUPTO",
+        "mensaje": "Archivo 'frente': El archivo no es un application/pdf válido: no se reconoce su formato. Puede estar dañado o ser de otro tipo."
+      }
+    },
+    {
+      "id": "22_pdf_con_contrasena",
+      "descripcion": "El `frente` es un PDF cifrado (trae /Encrypt). Responde 223.",
+      "entrada": {
+        "frente": {
+          "tipo_declarado": "application/pdf",
+          "contenido": "PDF con /Encrypt en el trailer"
+        },
+        "atras": {
+          "tipo_declarado": "image/png",
+          "contenido": "imagen válida"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 223,
+        "estado": "PDF_PROTEGIDO",
+        "mensaje": "Archivo 'frente': El PDF está protegido con contraseña. Quítasela y vuelve a enviarlo."
+      }
+    },
+    {
+      "id": "23_pdf_truncado",
+      "descripcion": "El `atras` es un PDF al que le falta el final (%%EOF). Responde 222.",
+      "entrada": {
+        "frente": {
+          "tipo_declarado": "image/png",
+          "contenido": "imagen válida"
+        },
+        "atras": {
+          "tipo_declarado": "application/pdf",
+          "contenido": "PDF sin %%EOF ni startxref"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 222,
+        "estado": "ARCHIVO_CORRUPTO",
+        "mensaje": "Archivo 'atras': El PDF está incompleto: le falta el final del archivo. Probablemente se cortó al descargarlo o al subirlo."
+      }
+    },
+    {
+      "id": "24_falta_un_campo",
+      "descripcion": "Falta el campo `atras`. HTTP 422. OJO: RAD hoy responde el cuerpo por defecto de FastAPI; el estándar objetivo es el sobre con `codigo` 422 (ver el handoff).",
+      "entrada": {
+        "frente": {
+          "tipo_declarado": "image/png",
+          "contenido": "imagen válida"
+        },
+        "atras": "(no se envía)"
+      },
+      "http_status": 422,
+      "no_comparar": [
+        "salida_esperada"
+      ],
+      "salida_esperada": {
+        "detail": [
+          {
+            "type": "missing",
+            "loc": [
+              "body",
+              "atras"
+            ],
+            "msg": "Field required",
+            "input": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "29_mrz_ilegible",
+      "descripcion": "El reverso trae el encabezado de la MRZ pero solo 2 de los 3 renglones: no se puede interpretar. `atras.mrz` lleva `error` y `texto_crudo` en lugar de campos, y los cruces contra la MRZ quedan sin verificar. Sale 212.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombre": "DANIELA ITZEL",
+            "domicilio": {
+              "calle_numero": "CALLE ALAMEDA 120",
+              "colonia": "LOMAS DE SAN JUAN",
+              "codigo_postal": "44100",
+              "municipio_delegacion": "GUADALAJARA",
+              "estado": "JAL"
+            },
+            "clave_elector": "MRVGDN91072314M123",
+            "curp": "MOVD910723MJCRGN05",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "anio_registro": "2014 01",
+            "seccion": "0817",
+            "numero_emision": "01",
+            "vigencia": "2032",
+            "pais": "MEXICO"
+          },
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nMORALES\nVEGA\nDANIELA ITZEL\nDOMICILIO\nCALLE ALAMEDA 120\nCOL LOMAS DE SAN JUAN 44100\nGUADALAJARA, JAL\nCLAVE DE ELECTOR MRVGDN91072314M123\nCURP MOVD910723MJCRGN05\nAÑO DE REGISTRO 2014 01\nFECHA DE NACIMIENTO 23/07/1991\nSEXO M\nSECCION 0817\nVIGENCIA 2032",
+          "repetidos": {}
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDMEX2034519875<<0817112233445\n9107234M3212312MEX<01<<<<<<<<6"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 212,
+        "estado": "PROCESADO_INCOMPLETO",
+        "mensaje": "El documento se procesó y nada se contradijo, pero quedaron comprobaciones sin poder realizarse. Revisa 'validacion.sin_verificar'.",
+        "frente": {
+          "apellido_paterno": "MORALES",
+          "apellido_materno": "VEGA",
+          "nombre": "DANIELA ITZEL",
+          "domicilio": {
+            "calle_numero": "CALLE ALAMEDA 120",
+            "colonia": "LOMAS DE SAN JUAN",
+            "codigo_postal": "44100",
+            "municipio_delegacion": "GUADALAJARA",
+            "estado": "JAL"
+          },
+          "clave_elector": "MRVGDN91072314M123",
+          "curp": "MOVD910723MJCRGN05",
+          "fecha_nacimiento": "1991-07-23",
+          "sexo": "M",
+          "anio_registro": "2014 01",
+          "seccion": "0817",
+          "numero_emision": "01",
+          "vigencia": "2032",
+          "pais": "MEXICO",
+          "formato_credencial": "nuevo",
+          "no_impresos": [
+            "estado_clave",
+            "municipio_clave",
+            "localidad_clave",
+            "anio_emision"
+          ]
+        },
+        "atras": {
+          "mrz": {
+            "error": "MRZ incompleta: 60 caracteres de 90",
+            "texto_crudo": "IDMEX2034519875<<0817112233445\n9107234M3212312MEX<01<<<<<<<<6"
+          }
+        },
+        "validacion": {
+          "ok": true,
+          "completo": false,
+          "coincidencias": [
+            "fecha_nacimiento (CURP)",
+            "sexo (CURP)",
+            "curp (dígito verificador)",
+            "clave_elector vs CURP (iniciales)",
+            "fecha_nacimiento (clave_elector)",
+            "sexo (clave_elector)",
+            "domicilio (código postal vs estado)"
+          ],
+          "discrepancias": [],
+          "sin_verificar": [
+            "MRZ completa (MRZ incompleta: 60 caracteres de 90)"
+          ]
+        },
+        "avisos": [],
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 313
+        },
+        "clasificacion_atras": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 65
+        }
+      }
+    },
+    {
+      "id": "25_archivos_invertidos",
+      "descripcion": "Los dos archivos están cambiados de lugar. Se revisa primero `frente`: responde 228, no 227.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "MORALES",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M"
+          },
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX2034519875<<0817112233445\n9107234M3212312MEX<01<<<<<<<<6\nMORALES<VEGA<<DANIELA<ITZEL<<<"
+        },
+        "atras": {
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nMORALES\nVEGA\nDANIELA ITZEL\nDOMICILIO\nCALLE ALAMEDA 120\nCOL LOMAS DE SAN JUAN 44100\nGUADALAJARA, JAL\nCLAVE DE ELECTOR MRVGDN91072314M123\nCURP MOVD910723MJCRGN05\nAÑO DE REGISTRO 2014 01\nFECHA DE NACIMIENTO 23/07/1991\nSEXO M\nSECCION 0817\nVIGENCIA 2032"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 228,
+        "estado": "ES_REVERSO_INE",
+        "mensaje": "Archivo 'frente': El archivo enviado como anverso es el reverso de la INE: trae la zona de lectura mecánica (MRZ) pero ningún dato del frente. Envía el frente, o usa el endpoint del reverso.",
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 127
+        }
+      }
+    },
+    {
+      "id": "26_integridad_gana_a_clasificacion",
+      "descripcion": "El `frente` viene en blanco (221) y el `atras` está dañado (222). Los errores del archivo se revisan antes que la clasificación, así que responde 222 del `atras`.",
+      "entrada": {
+        "frente": {
+          "tipo_declarado": "image/png",
+          "contenido": "imagen válida que el clasificador da por hoja en blanco"
+        },
+        "atras": {
+          "tipo_declarado": "image/png",
+          "contenido": "0 bytes"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 222,
+        "estado": "ARCHIVO_CORRUPTO",
+        "mensaje": "Archivo 'atras': El archivo llegó vacío (0 bytes)."
+      }
+    },
+    {
+      "id": "27_dos_archivos_danados",
+      "descripcion": "Los dos archivos están dañados. Responde el del `frente`.",
+      "entrada": {
+        "frente": {
+          "tipo_declarado": "application/pdf",
+          "contenido": "los bytes 'no soy un pdf'"
+        },
+        "atras": {
+          "tipo_declarado": "image/png",
+          "contenido": "0 bytes"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 222,
+        "estado": "ARCHIVO_CORRUPTO",
+        "mensaje": "Archivo 'frente': El archivo no es un application/pdf válido: no se reconoce su formato. Puede estar dañado o ser de otro tipo."
+      }
+    },
+    {
+      "id": "28_los_dos_rechazados_por_el_clasificador",
+      "descripcion": "Los dos archivos son una factura. Responde 220 del `frente`.",
+      "entrada": {
+        "frente": {
+          "texto_ocr": "FACTURA 0001  Total a pagar $1,250.00  Cliente ACME SA de CV",
+          "clasificacion": {
+            "categoria": "otro",
+            "confianza": 0.9999,
+            "caracteres_leidos": 60
+          }
+        },
+        "atras": {
+          "texto_ocr": "FACTURA 0001  Total a pagar $1,250.00  Cliente ACME SA de CV",
+          "clasificacion": {
+            "categoria": "otro",
+            "confianza": 0.9999,
+            "caracteres_leidos": 60
+          }
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 220,
+        "estado": "NO_ES_INE",
+        "mensaje": "Archivo 'frente': El documento no es una credencial para votar (INE). No se extrajo ningún dato.",
+        "clasificacion": {
+          "categoria": "otro",
+          "confianza": 0.9999,
+          "caracteres_leidos": 60
+        }
+      }
+    }
+  ]
+}
