@@ -423,9 +423,11 @@ async def _procesa(contenido: bytes, mime_type: str, doc_type: str,
             raise codigos.ErrorAPI(
                 codigos.ES_REVERSO_INE, prefijo_frente + codigos.ES_REVERSO_INE.mensaje, **extra)
         if atras is not None and ine_atras.armar_respuesta(texto_atras) is None:
+            # El archivo con el problema es `atras`: el veredicto que se muestra es el suyo.
+            extra_atras = {"clasificacion": clasificacion_atras} if clasificacion_atras else extra
             raise codigos.ErrorAPI(
                 codigos.NO_ES_REVERSO_INE,
-                "Archivo 'atras': " + codigos.NO_ES_REVERSO_INE.mensaje, **extra)
+                "Archivo 'atras': " + codigos.NO_ES_REVERSO_INE.mensaje, **extra_atras)
 
     if clasificacion:
         respuesta["clasificacion"] = clasificacion

@@ -403,6 +403,15 @@ def _iniciales_desde_curp(curp: str) -> str:
     return curp[0] + curp[13] + curp[2] + curp[14] + curp[3] + curp[15]
 
 
+def _derivar_iniciales(paterno: Any, materno: Any, nombre: Any, saltar: bool = False) -> str:
+    """Las 6 iniciales de la clave de elector, derivadas de un paterno, un materno
+    y un nombre dados. Sirve igual para lo que leyó el modelo que para lo que
+    trae la MRZ."""
+    return (_iniciales_clave(paterno, saltar)
+            + _iniciales_clave(materno, saltar)
+            + _iniciales_clave(_nombre_para_clave(nombre), saltar))
+
+
 # --------------------------------------------------------------------------
 # Comprobaciones que salen de reglas públicas, no del modelo
 # --------------------------------------------------------------------------
@@ -705,14 +714,21 @@ def validar(frente: Dict[str, Any], mrz: Dict[str, Any]) -> Dict[str, Any]:
                 )
     else:
         omitidas.append(f"CURP (formato inválido: '{curp or 'ausente'}')")
+        # Las primeras 4 posiciones de la CURP son siempre letras (iniciales del
+        # nombre). Un dígito ahí es una lectura errónea del OCR ('MAMI' leído
+        # 'MAM1'), y decirlo es más útil que dejarlo solo en `sin_verificar`.
+        if len(curp) == 18 and not curp[:4].isalpha():
+            discrepancias.append(
+                f"curp: los primeros 4 caracteres deben ser letras y trae '{curp[:4]}'"
+            )
 
     # --- contra la clave de elector ---
     if len(clave) == 18:
         esperadas_curp = _iniciales_desde_curp(curp)
         def derivadas(saltar: bool) -> str:
-            return (_iniciales_clave(frente.get("apellido_paterno"), saltar)
-                    + _iniciales_clave(frente.get("apellido_materno"), saltar)
-                    + _iniciales_clave(_nombre_para_clave(frente.get("nombre")), saltar))
+            return _derivar_iniciales(frente.get("apellido_paterno"),
+                                      frente.get("apellido_materno"),
+                                      frente.get("nombre"), saltar)
 
         esperadas_nombre = derivadas(False)
         # Un apellido compuesto ('DE LA CRUZ') se codifica con su primera palabra
@@ -858,6 +874,82 @@ def corregir_nombre_con_mrz(frente: Dict[str, Any], mrz: Dict[str, Any]) -> List
     return hechas
 
 
+def _palabras_normalizadas(valor: Any) -> List[str]:
+    return _sin_acentos(valor.upper()).split() if isinstance(valor, str) else []
+
+
+def reordenar_nombre_con_mrz(frente: Dict[str, Any], mrz: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Reasigna entre sí el paterno, el materno y el nombre del frente cuando el
+    modelo leyó las palabras correctas pero las puso en el campo equivocado, y
+    devuelve qué cambió (o None si no tocó nada).
+
+    Caso real que lo motivó: la credencial imprime VENTURA / GARCIA / URBANO bajo
+    la etiqueta NOMBRE, y el modelo devolvió apellido_paterno GARCIA,
+    apellido_materno URBANO y nombre VENTURA, en las cuatro corridas que se
+    probaron. El OCR leyó el texto bien y en su orden; lo que falla es la
+    asignación, quizá porque VENTURA y URBANO también son nombres de pila. La MRZ
+    trae VENTURA<GARCIA<<URBANO, donde el '<<' separa los apellidos del nombre.
+
+    Solo se corrige cuando se cumplen TODAS estas condiciones:
+
+      - La MRZ es íntegra y su renglón de nombres no está abreviado.
+      - Las palabras del frente y las de la MRZ son las mismas, solo repartidas
+        distinto. No se inventa ninguna: se mueven las que el frente ya trae.
+      - El nombre del frente no coincide con el de la MRZ. Si coincide y solo
+        cambia el reparto entre los apellidos, es un apellido compuesto
+        ('DE LA CRUZ') y eso ya lo resuelve validar().
+      - La CURP o la clave de elector, que son lectura independiente de la MRZ,
+        codifican las iniciales del orden de la MRZ y NO las del orden del
+        frente. Sin esa segunda fuente no hay manera de saber cuál de los dos
+        reparto es el bueno, y entonces la discrepancia se sigue reportando.
+    """
+    if not mrz or mrz.get("error") or not mrz.get("integra") or mrz.get("campo_truncado"):
+        return None
+
+    campos = ("apellido_paterno", "apellido_materno", "nombre")
+    en_mrz = (mrz.get("apellido_paterno"), mrz.get("apellido_materno"), mrz.get("nombres"))
+    leidos = tuple(frente.get(c) for c in campos)
+    if not all(isinstance(v, str) and v for v in leidos + en_mrz):
+        return None
+
+    if _palabras_normalizadas(leidos[2]) == _palabras_normalizadas(en_mrz[2]):
+        return None
+
+    # Las palabras salen del frente, no de la MRZ: la MRZ no lleva Ñ ni acentos.
+    pendientes = [p for v in leidos for p in v.split()]
+    nuevos = []
+    for valor in en_mrz:
+        tomadas = []
+        for palabra in _palabras_normalizadas(valor):
+            i = next((i for i, p in enumerate(pendientes)
+                      if _palabras_normalizadas(p) == [palabra]), None)
+            if i is None:
+                return None
+            tomadas.append(pendientes.pop(i))
+        nuevos.append(" ".join(tomadas))
+    if pendientes:
+        return None
+
+    curp = re.sub(r"[^A-Z0-9]", "", (frente.get("curp") or "").upper())
+    clave = re.sub(r"[^A-Z0-9]", "", (frente.get("clave_elector") or "").upper())
+    testigos = {t for t in (_iniciales_desde_curp(curp), clave[:6] if len(clave) == 18 else "")
+                if len(t) == 6}
+    if not testigos:
+        return None
+
+    def derivadas(paterno, materno, nombre) -> set:
+        return {d for d in (_derivar_iniciales(paterno, materno, nombre, False),
+                            _derivar_iniciales(paterno, materno, nombre, True)) if len(d) == 6}
+
+    if not (testigos & derivadas(*nuevos)) or (testigos & derivadas(*leidos)):
+        return None
+
+    for campo, valor in zip(campos, nuevos):
+        frente[campo] = valor
+    return {"leido": dict(zip(campos, leidos)), "ahora": dict(zip(campos, nuevos))}
+
+
 def armar_respuesta(entidades: Dict[str, Any],
                     repetidos: Optional[Dict[str, int]] = None,
                     texto_ocr: str = "") -> Dict[str, Any]:
@@ -915,6 +1007,18 @@ def armar_respuesta(entidades: Dict[str, Any],
             f"y la MRZ trae '{c['mrz']}'"
         )
 
+    # Las palabras correctas en el campo equivocado (el nombre de pila leído como
+    # apellido paterno): se reacomodan con la MRZ si la CURP y la clave lo avalan.
+    reordenado = reordenar_nombre_con_mrz(frente, mrz)
+    if reordenado:
+        leido, ahora = reordenado["leido"], reordenado["ahora"]
+        avisos.append(
+            "frente: apellidos y nombre reacomodados con la MRZ: se leyó "
+            f"paterno '{leido['apellido_paterno']}', materno '{leido['apellido_materno']}', "
+            f"nombre '{leido['nombre']}' y la MRZ trae paterno '{ahora['apellido_paterno']}', "
+            f"materno '{ahora['apellido_materno']}', nombre '{ahora['nombre']}'"
+        )
+
     # Un PDF con varios documentos produce entidades repetidas: se conserva la
     # primera (la INE) y se avisa, en vez de mezclar dos identidades en silencio.
     for tipo, veces in (repetidos or {}).items():
@@ -944,6 +1048,8 @@ def armar_respuesta(entidades: Dict[str, Any],
     # nada. Se quita de la lista para que `coincidencias` solo cuente evidencia
     # independiente; el aviso es lo que deja constancia de la corrección.
     circulares = {c["etiqueta"] for c in correcciones}
+    if reordenado:
+        circulares |= {etiqueta for _, etiqueta in CAMPOS_NOMBRE_MRZ.values()}
     if circulares:
         validacion["coincidencias"] = [e for e in validacion["coincidencias"] if e not in circulares]
 

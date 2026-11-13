@@ -1,6 +1,6 @@
 {
   "que_es": "Vectores de prueba de POST /procesa_ine_ambas/ de RAD. Cada caso trae lo que el motor de lectura entrega (`entrada`: campos extraídos y texto del OCR de cada archivo, más el veredicto del clasificador cuando aplica) y la respuesta que RAD dio (`salida_esperada`). Datos ficticios.",
-  "como_usarlos": "Alimenta tu capa de validación con `entrada` y compara la respuesta con `salida_esperada` (igualdad de JSON, sin importar el orden de las llaves). Los casos 19-24 y 26-28 no dependen del motor de lectura: son las guardias del archivo y de la petición. `no_comparar` lista lo que el caso no exige igualar (ver el handoff).",
+  "como_usarlos": "Alimenta tu capa de validación con `entrada` y compara la respuesta con `salida_esperada` (igualdad de JSON, sin importar el orden de las llaves). Los casos 19-24, 26-28 y 32 no dependen del motor de lectura: son las guardias del archivo y de la petición. `no_comparar` lista las llaves de `salida_esperada` que el caso no exige igualar (ver el handoff).",
   "nunca_comparar": [
     "clasificacion.confianza",
     "clasificacion.caracteres_leidos",
@@ -1788,9 +1788,7 @@
         }
       },
       "http_status": 200,
-      "no_comparar": [
-        "clasificacion"
-      ],
+      "no_comparar": [],
       "salida_esperada": {
         "codigo": 227,
         "estado": "NO_ES_REVERSO_INE",
@@ -2046,7 +2044,7 @@
     },
     {
       "id": "24_falta_un_campo",
-      "descripcion": "Falta el campo `atras`. HTTP 422. OJO: RAD hoy responde el cuerpo por defecto de FastAPI; el estándar objetivo es el sobre con `codigo` 422 (ver el handoff).",
+      "descripcion": "Falta el campo `atras`. HTTP 422 con el sobre normal y, en `errores`, el detalle que dé el framework (por eso no se compara).",
       "entrada": {
         "frente": {
           "tipo_declarado": "image/png",
@@ -2056,10 +2054,13 @@
       },
       "http_status": 422,
       "no_comparar": [
-        "salida_esperada"
+        "errores"
       ],
       "salida_esperada": {
-        "detail": [
+        "codigo": 422,
+        "estado": "PETICION_INVALIDA",
+        "mensaje": "La petición no es válida. Se espera multipart/form-data con un campo de archivo.",
+        "errores": [
           {
             "type": "missing",
             "loc": [
@@ -2278,6 +2279,296 @@
           "confianza": 0.9999,
           "caracteres_leidos": 60
         }
+      }
+    },
+    {
+      "id": "30_reacomodo_de_apellidos_y_nombre",
+      "descripcion": "La credencial imprime VENTURA / GARCIA / URBANO y el motor asignó las palabras al campo equivocado (paterno GARCIA, materno URBANO, nombre VENTURA). La MRZ es íntegra y la CURP y la clave codifican el orden de la MRZ, así que se reasignan y se avisa. Los tres campos dejan de contar como coincidencia. Sale 211.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "GARCIA",
+            "apellido_materno": "URBANO",
+            "nombre": "VENTURA",
+            "domicilio": {
+              "calle_numero": "CALLE HIDALGO 45",
+              "colonia": "CENTRO",
+              "codigo_postal": "91700",
+              "municipio_delegacion": "VERACRUZ",
+              "estado": "VER"
+            },
+            "clave_elector": "VNGRUR83030930H123",
+            "curp": "VEGU830309HVZNRR03",
+            "fecha_nacimiento": "1983-03-09",
+            "sexo": "H",
+            "anio_registro": "2013 01",
+            "seccion": "1188",
+            "numero_emision": "01",
+            "vigencia": "2031",
+            "pais": "MEXICO"
+          },
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nVENTURA\nGARCIA\nURBANO\nDOMICILIO\nCALLE HIDALGO 45\nCOL CENTRO 91700\nVERACRUZ, VER\nCLAVE DE ELECTOR VNGRUR83030930H123\nCURP VEGU830309HVZNRR03\nAÑO DE REGISTRO 2013 01\nFECHA DE NACIMIENTO 09/03/1983\nSEXO H\nSECCION 1188\nVIGENCIA 2031",
+          "repetidos": {}
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX7641209384<<1188334455667\n8303095H3112319MEX<01<<<<<<<<4\nVENTURA<GARCIA<<URBANO<<<<<<<<"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 211,
+        "estado": "PROCESADO_CON_AVISOS",
+        "mensaje": "El documento se procesó y nada se contradijo, pero hay algo que requiere revisión humana. Revisa 'avisos'.",
+        "frente": {
+          "apellido_paterno": "VENTURA",
+          "apellido_materno": "GARCIA",
+          "nombre": "URBANO",
+          "domicilio": {
+            "calle_numero": "CALLE HIDALGO 45",
+            "colonia": "CENTRO",
+            "codigo_postal": "91700",
+            "municipio_delegacion": "VERACRUZ",
+            "estado": "VER"
+          },
+          "clave_elector": "VNGRUR83030930H123",
+          "curp": "VEGU830309HVZNRR03",
+          "fecha_nacimiento": "1983-03-09",
+          "sexo": "H",
+          "anio_registro": "2013 01",
+          "seccion": "1188",
+          "numero_emision": "01",
+          "vigencia": "2031",
+          "pais": "MEXICO",
+          "formato_credencial": "nuevo",
+          "no_impresos": [
+            "estado_clave",
+            "municipio_clave",
+            "localidad_clave",
+            "anio_emision"
+          ]
+        },
+        "atras": {
+          "mrz": {
+            "lineas": [
+              "IDMEX7641209384<<1188334455667",
+              "8303095H3112319MEX<01<<<<<<<<4",
+              "VENTURA<GARCIA<<URBANO<<<<<<<<"
+            ],
+            "tipo_documento": "ID",
+            "pais_emisor": "MEX",
+            "cic": "764120938",
+            "seccion": "1188",
+            "identificador_ciudadano": "334455667",
+            "nacionalidad": "MEX",
+            "folio": "764120938",
+            "fecha_nacimiento": "1983-03-09",
+            "sexo": "H",
+            "vigencia": "2031-12-31",
+            "apellido_paterno": "VENTURA",
+            "apellido_materno": "GARCIA",
+            "nombres": "URBANO",
+            "digitos_control": {
+              "cic": true,
+              "fecha_nacimiento": true,
+              "vigencia": true,
+              "compuesto": true
+            },
+            "integra": true,
+            "origen": "texto"
+          }
+        },
+        "validacion": {
+          "ok": true,
+          "completo": true,
+          "coincidencias": [
+            "MRZ (dígitos de control)",
+            "fecha_nacimiento (MRZ)",
+            "sexo (MRZ)",
+            "vigencia (MRZ)",
+            "seccion (MRZ)",
+            "anio_registro, sufijo (MRZ)",
+            "fecha_nacimiento (CURP)",
+            "sexo (CURP)",
+            "curp (dígito verificador)",
+            "clave_elector vs CURP (iniciales)",
+            "fecha_nacimiento (clave_elector)",
+            "sexo (clave_elector)",
+            "domicilio (código postal vs estado)"
+          ],
+          "discrepancias": [],
+          "sin_verificar": []
+        },
+        "avisos": [
+          "frente: apellidos y nombre reacomodados con la MRZ: se leyó paterno 'GARCIA', materno 'URBANO', nombre 'VENTURA' y la MRZ trae paterno 'VENTURA', materno 'GARCIA', nombre 'URBANO'"
+        ],
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 293
+        },
+        "clasificacion_atras": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 127
+        }
+      }
+    },
+    {
+      "id": "31_curp_con_digito_en_las_primeras_4_letras",
+      "descripcion": "La CURP trae un dígito donde van letras ('M0VD'): el OCR leyó una O como 0. No se corrige; se reporta la discrepancia y la CURP queda como formato inválido en `sin_verificar`. Sale 210.",
+      "entrada": {
+        "frente": {
+          "campos": {
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombre": "DANIELA ITZEL",
+            "domicilio": {
+              "calle_numero": "CALLE ALAMEDA 120",
+              "colonia": "LOMAS DE SAN JUAN",
+              "codigo_postal": "44100",
+              "municipio_delegacion": "GUADALAJARA",
+              "estado": "JAL"
+            },
+            "clave_elector": "MRVGDN91072314M123",
+            "curp": "M0VD910723MJCRGN05",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "anio_registro": "2014 01",
+            "seccion": "0817",
+            "numero_emision": "01",
+            "vigencia": "2032",
+            "pais": "MEXICO"
+          },
+          "texto_ocr": "INSTITUTO NACIONAL ELECTORAL\nCREDENCIAL PARA VOTAR\nMEXICO\nNOMBRE\nMORALES\nVEGA\nDANIELA ITZEL\nDOMICILIO\nCALLE ALAMEDA 120\nCOL LOMAS DE SAN JUAN 44100\nGUADALAJARA, JAL\nCLAVE DE ELECTOR MRVGDN91072314M123\nCURP M0VD910723MJCRGN05\nAÑO DE REGISTRO 2014 01\nFECHA DE NACIMIENTO 23/07/1991\nSEXO M\nSECCION 0817\nVIGENCIA 2032",
+          "repetidos": {}
+        },
+        "atras": {
+          "texto_ocr": "INE\nIDENTIFICADOR DE LA CREDENCIAL\nIDMEX2034519875<<0817112233445\n9107234M3212312MEX<01<<<<<<<<6\nMORALES<VEGA<<DANIELA<ITZEL<<<"
+        }
+      },
+      "http_status": 200,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 210,
+        "estado": "PROCESADO_CON_DISCREPANCIAS",
+        "mensaje": "El documento se procesó, pero hay datos que se contradicen entre sí. Revisa 'validacion.discrepancias' antes de dar los datos por buenos.",
+        "frente": {
+          "apellido_paterno": "MORALES",
+          "apellido_materno": "VEGA",
+          "nombre": "DANIELA ITZEL",
+          "domicilio": {
+            "calle_numero": "CALLE ALAMEDA 120",
+            "colonia": "LOMAS DE SAN JUAN",
+            "codigo_postal": "44100",
+            "municipio_delegacion": "GUADALAJARA",
+            "estado": "JAL"
+          },
+          "clave_elector": "MRVGDN91072314M123",
+          "curp": "M0VD910723MJCRGN05",
+          "fecha_nacimiento": "1991-07-23",
+          "sexo": "M",
+          "anio_registro": "2014 01",
+          "seccion": "0817",
+          "numero_emision": "01",
+          "vigencia": "2032",
+          "pais": "MEXICO",
+          "formato_credencial": "nuevo",
+          "no_impresos": [
+            "estado_clave",
+            "municipio_clave",
+            "localidad_clave",
+            "anio_emision"
+          ]
+        },
+        "atras": {
+          "mrz": {
+            "lineas": [
+              "IDMEX2034519875<<0817112233445",
+              "9107234M3212312MEX<01<<<<<<<<6",
+              "MORALES<VEGA<<DANIELA<ITZEL<<<"
+            ],
+            "tipo_documento": "ID",
+            "pais_emisor": "MEX",
+            "cic": "203451987",
+            "seccion": "0817",
+            "identificador_ciudadano": "112233445",
+            "nacionalidad": "MEX",
+            "folio": "203451987",
+            "fecha_nacimiento": "1991-07-23",
+            "sexo": "M",
+            "vigencia": "2032-12-31",
+            "apellido_paterno": "MORALES",
+            "apellido_materno": "VEGA",
+            "nombres": "DANIELA ITZEL",
+            "digitos_control": {
+              "cic": true,
+              "fecha_nacimiento": true,
+              "vigencia": true,
+              "compuesto": true
+            },
+            "integra": true,
+            "origen": "texto"
+          }
+        },
+        "validacion": {
+          "ok": false,
+          "completo": false,
+          "coincidencias": [
+            "MRZ (dígitos de control)",
+            "fecha_nacimiento (MRZ)",
+            "sexo (MRZ)",
+            "apellido_paterno (MRZ)",
+            "apellido_materno (MRZ)",
+            "nombre (MRZ)",
+            "vigencia (MRZ)",
+            "seccion (MRZ)",
+            "anio_registro, sufijo (MRZ)",
+            "clave_elector vs CURP (iniciales)",
+            "fecha_nacimiento (clave_elector)",
+            "sexo (clave_elector)",
+            "domicilio (código postal vs estado)"
+          ],
+          "discrepancias": [
+            "curp: los primeros 4 caracteres deben ser letras y trae 'M0VD'"
+          ],
+          "sin_verificar": [
+            "CURP (formato inválido: 'M0VD910723MJCRGN05')"
+          ]
+        },
+        "avisos": [],
+        "clasificacion": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 313
+        },
+        "clasificacion_atras": {
+          "categoria": "ine",
+          "confianza": 0.9999,
+          "caracteres_leidos": 127
+        }
+      }
+    },
+    {
+      "id": "32_error_inesperado",
+      "descripcion": "Se produce una excepción que el código no previó. Responde 500 con el sobre, no con texto plano.",
+      "entrada": {
+        "frente": {
+          "tipo_declarado": "image/png",
+          "contenido": "imagen válida"
+        },
+        "atras": {
+          "tipo_declarado": "image/png",
+          "contenido": "imagen válida"
+        },
+        "nota": "se provoca una excepción interna cualquiera después de las guardias"
+      },
+      "http_status": 500,
+      "no_comparar": [],
+      "salida_esperada": {
+        "codigo": 500,
+        "estado": "ERROR_INTERNO",
+        "mensaje": "Error interno de la API."
       }
     }
   ]

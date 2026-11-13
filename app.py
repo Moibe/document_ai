@@ -10,7 +10,10 @@ import herramientas
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.encoders import jsonable_encoder
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import StreamingResponse, JSONResponse, PlainTextResponse
 from fastapi import FastAPI, File, Request, UploadFile, HTTPException, status
 
 from dotenv import load_dotenv
@@ -30,10 +33,49 @@ app = FastAPI(
 
 @app.exception_handler(codigos.ErrorAPI)
 async def _error_api(request: Request, exc: codigos.ErrorAPI):
-    """Las fallas de /procesa_ine/ se reportan con la misma forma que los éxitos."""
+    """Las fallas de los endpoints con sobre se reportan con la misma forma que los éxitos."""
     return JSONResponse(
         status_code=exc.desenlace.http,
         content=codigos.cuerpo(exc.desenlace, exc.mensaje, **exc.extra),
+    )
+
+# Endpoints que responden con el sobre `codigo`/`estado`/`mensaje` en TODAS sus
+# respuestas, incluidas la petición inválida y el error inesperado. Los endpoints
+# anteriores (pasaporte, FM, CSF, cédula profesional) conservan sus respuestas de
+# siempre: cambiarles la forma del 422 o del 500 rompería a quien ya las lee.
+RUTAS_CON_SOBRE = {"/procesa_ine", "/procesa_ine_atras", "/procesa_ine_ambas", "/procesa_cedula_panama"}
+
+
+def _usa_sobre(request: Request) -> bool:
+    return request.url.path.rstrip("/") in RUTAS_CON_SOBRE
+
+
+@app.exception_handler(RequestValidationError)
+async def _peticion_invalida(request: Request, exc: RequestValidationError):
+    """FastAPI valida la petición antes de llegar al endpoint y responde con su propia
+    forma. En los endpoints con sobre se reescribe para que TODA respuesta traiga el
+    desenlace: un contrato que se cumple casi siempre obliga al cliente a programar dos
+    caminos, que es justo lo que `codigo`, `estado` y `mensaje` venían a evitar."""
+    if not _usa_sobre(request):
+        return await request_validation_exception_handler(request, exc)
+    return JSONResponse(
+        status_code=codigos.PETICION_INVALIDA.http,
+        content=codigos.cuerpo(codigos.PETICION_INVALIDA, errores=jsonable_encoder(exc.errors())),
+    )
+
+
+@app.exception_handler(Exception)
+async def _error_inesperado(request: Request, exc: Exception):
+    """Una excepción que nadie previó. En los endpoints con sobre responde `500
+    ERROR_INTERNO` con la forma de siempre; en los demás, el texto plano que da el
+    framework. La excepción se registra aquí y, además, el servidor la vuelve a
+    registrar con su traza completa."""
+    logger.error(f"Error inesperado en {request.url.path}: {exc!r}", exc_info=exc)
+    if not _usa_sobre(request):
+        return PlainTextResponse("Internal Server Error", status_code=500)
+    return JSONResponse(
+        status_code=codigos.ERROR_INTERNO.http,
+        content=codigos.cuerpo(codigos.ERROR_INTERNO),
     )
 
 # Nuevo endpoint para Health Check

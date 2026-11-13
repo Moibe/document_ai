@@ -308,7 +308,7 @@ f = archivo_falso("14-frente", campos_frente(A), texto_frente(A))
 a = archivo_falso("14-atras", {}, texto_frente(A))
 caso("14_atras_sin_mrz",
      "En `atras` mandaron otra copia del frente: no hay MRZ. Responde 227 (`atras` es el campo con problema).",
-     f, a, no_comparar=["clasificacion"],
+     f, a,
      entrada_extra={"frente": {"campos": campos_frente(A), "texto_ocr": texto_frente(A)},
                     "atras": {"texto_ocr": texto_frente(A)}})
 CASOS[-1]["_entrada"] = CASOS[-1].pop("_extra")
@@ -366,10 +366,10 @@ caso_http("22_pdf_con_contrasena", "El `frente` es un PDF cifrado (trae /Encrypt
 caso_http("23_pdf_truncado", "El `atras` es un PDF al que le falta el final (%%EOF). Responde 222.",
           {"frente": ("f.png", PNG_OK, "image/png"), "atras": ("a.pdf", PDF_TRUNCADO, "application/pdf")},
           {"frente": {"tipo_declarado": "image/png", "contenido": "imagen válida"}, "atras": {"tipo_declarado": "application/pdf", "contenido": "PDF sin %%EOF ni startxref"}})
-caso_http("24_falta_un_campo", "Falta el campo `atras`. HTTP 422. OJO: RAD hoy responde el cuerpo por defecto de FastAPI; el estándar objetivo es el sobre con `codigo` 422 (ver el handoff).",
+caso_http("24_falta_un_campo", "Falta el campo `atras`. HTTP 422 con el sobre normal y, en `errores`, el detalle que dé el framework (por eso no se compara).",
           {"frente": ("f.png", PNG_OK, "image/png")},
           {"frente": {"tipo_declarado": "image/png", "contenido": "imagen válida"}, "atras": "(no se envía)"},
-          no_comparar=["salida_esperada"])
+          no_comparar=["errores"])
 
 # 29: la MRZ está pero no se puede reconstruir (el OCR perdió el renglón de los nombres)
 l1, l2, _ = lineas_mrz(A)
@@ -408,6 +408,43 @@ caso_http("28_los_dos_rechazados_por_el_clasificador",
           {"frente": {"texto_ocr": otro, "clasificacion": veredicto("otro", 0.9999, otro)},
            "atras": {"texto_ocr": otro, "clasificacion": veredicto("otro", 0.9999, otro)}})
 
+# 30-31: las dos reglas que RAD comparte con santander_ia desde que se sincronizó
+DOM_VER = {"calle_numero": "CALLE HIDALGO 45", "colonia": "CENTRO", "codigo_postal": "91700",
+           "municipio_delegacion": "VERACRUZ", "estado": "VER"}
+V = persona("VENTURA", "GARCIA", "URBANO", date(1983, 3, 9), "H", "VZ", "30", "1188",
+            "764120938", "334455667", 2031, "01", DOM_VER, "2013 01")
+par("30_reacomodo_de_apellidos_y_nombre",
+    "La credencial imprime VENTURA / GARCIA / URBANO y el motor asignó las palabras al campo equivocado "
+    "(paterno GARCIA, materno URBANO, nombre VENTURA). La MRZ es íntegra y la CURP y la clave codifican el "
+    "orden de la MRZ, así que se reasignan y se avisa. Los tres campos dejan de contar como coincidencia. Sale 211.",
+    V, campos=campos_frente(V, apellido_paterno="GARCIA", apellido_materno="URBANO", nombre="VENTURA"))
+pm = dict(A, curp="M0" + A["curp"][2:])
+par("31_curp_con_digito_en_las_primeras_4_letras",
+    "La CURP trae un dígito donde van letras ('M0VD'): el OCR leyó una O como 0. No se corrige; se reporta la "
+    "discrepancia y la CURP queda como formato inválido en `sin_verificar`. Sale 210.",
+    A, campos=campos_frente(pm), texto_f=texto_frente(pm))
+
+# 32: una excepción que nadie previó
+_original = funciones.procesa_ine_ambas
+
+
+async def _explota(*args, **kwargs):
+    raise RuntimeError("fallo que nadie previó")
+
+
+funciones.procesa_ine_ambas = _explota
+try:
+    r = TestClient(app_rad.app, raise_server_exceptions=False).post("/procesa_ine_ambas/", files={
+        "frente": ("frente.png", PNG_OK, "image/png"), "atras": ("atras.png", PNG_ATRAS, "image/png")})
+finally:
+    funciones.procesa_ine_ambas = _original
+CASOS.append({"id": "32_error_inesperado",
+              "descripcion": "Se produce una excepción que el código no previó. Responde 500 con el sobre, no con texto plano.",
+              "http_status": r.status_code, "no_comparar": [], "salida_esperada": r.json(),
+              "_entrada": {"frente": {"tipo_declarado": "image/png", "contenido": "imagen válida"},
+                           "atras": {"tipo_declarado": "image/png", "contenido": "imagen válida"},
+                           "nota": "se provoca una excepción interna cualquiera después de las guardias"}})
+
 # --------------------------------------------------------------------------
 # Salida
 # --------------------------------------------------------------------------
@@ -431,9 +468,9 @@ documento = {
               "(`entrada`: campos extraídos y texto del OCR de cada archivo, más el veredicto del clasificador cuando "
               "aplica) y la respuesta que RAD dio (`salida_esperada`). Datos ficticios.",
     "como_usarlos": "Alimenta tu capa de validación con `entrada` y compara la respuesta con `salida_esperada` "
-                    "(igualdad de JSON, sin importar el orden de las llaves). Los casos 19-24 y 26-28 no dependen del motor de "
-                    "lectura: son las guardias del archivo y de la petición. `no_comparar` lista lo que el caso no "
-                    "exige igualar (ver el handoff).",
+                    "(igualdad de JSON, sin importar el orden de las llaves). Los casos 19-24, 26-28 y 32 no dependen del motor de "
+                    "lectura: son las guardias del archivo y de la petición. `no_comparar` lista las llaves de "
+                    "`salida_esperada` que el caso no exige igualar (ver el handoff).",
     "nunca_comparar": ["clasificacion.confianza", "clasificacion.caracteres_leidos",
                        "clasificacion_atras.confianza", "clasificacion_atras.caracteres_leidos"],
     "clasificador_por_omision": "Salvo que el caso diga otra cosa, el clasificador respondió categoria 'ine' (confianza 0.9999) "
@@ -442,6 +479,21 @@ documento = {
     "generado_con": "generar_vectores_ine_ambas.py",
     "casos": CASOS,
 }
+
+if "--verificar" in sys.argv:
+    # No escribe nada: compara lo que RAD responde ahora contra el JSON guardado.
+    with open(SALIDA, encoding="utf-8") as f:
+        previo = json.load(f)
+    guardados = {c["id"]: c for c in previo.get("casos", [])}
+    actuales = {c["id"]: c for c in CASOS}
+    cambiados = sorted(i for i in actuales if guardados.get(i) != actuales[i])
+    sobran = sorted(set(guardados) - set(actuales))
+    if not cambiados and not sobran:
+        print(f"OK: los {len(CASOS)} casos responden igual que el contrato guardado")
+        sys.exit(0)
+    print("EL CONTRATO CAMBIO. Casos distintos:", ", ".join(cambiados + sobran))
+    print("Si el cambio es intencional, vuelve a correr sin --verificar y revisa el diff del JSON.")
+    sys.exit(1)
 
 with open(SALIDA, "w", encoding="utf-8") as f:
     json.dump(documento, f, ensure_ascii=False, indent=2)
