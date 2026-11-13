@@ -57,6 +57,15 @@ def _destinos():
         }
     except ImportError:
         pass
+    try:
+        import pasaporte
+        destinos["pasaporte"] = {
+            "display_name": pasaporte.DISPLAY_NAME,
+            "tipo": "CUSTOM_EXTRACTION_PROCESSOR",
+            "esquema": pasaporte.esquema,
+        }
+    except ImportError:
+        pass
     return destinos
 
 

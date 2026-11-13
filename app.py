@@ -43,7 +43,8 @@ async def _error_api(request: Request, exc: codigos.ErrorAPI):
 # respuestas, incluidas la petición inválida y el error inesperado. Los endpoints
 # anteriores (pasaporte, FM, CSF, cédula profesional) conservan sus respuestas de
 # siempre: cambiarles la forma del 422 o del 500 rompería a quien ya las lee.
-RUTAS_CON_SOBRE = {"/procesa_ine", "/procesa_ine_atras", "/procesa_ine_ambas", "/procesa_cedula_panama"}
+RUTAS_CON_SOBRE = {"/procesa_ine", "/procesa_ine_atras", "/procesa_ine_ambas", "/procesa_cedula_panama",
+                   "/procesa_pasaporte"}
 
 
 def _usa_sobre(request: Request) -> bool:
@@ -105,10 +106,21 @@ async def echo_image(image: UploadFile = File(...)):
         "/procesa_pasaporte/", 
         tags=["Documentos"],       
         summary="Pasaportes")
-async def procesa_documento(image: UploadFile = File(...)):
-    if not image.content_type.startswith("image/"):
-        return {"error": "El archivo no es una imagen"}
-    return await funciones.procesa_pasaporte(image)
+async def procesa_documento_pasaporte(image: UploadFile = File(...)):
+    """
+    Recibe un pasaporte en PDF o imagen y devuelve sus datos.
+
+    Misma forma de respuesta que /procesa_ine/: el desenlace en `codigo`, `estado`
+    y `mensaje`, los datos de la hoja, la MRZ (TD3, dos renglones de 44) y el
+    contraste entre una y otra en `validacion`. Hoja en blanco responde 221 y un
+    documento que no es pasaporte, 225.
+    """
+    contenido, mime, resto = await _revisar_y_clasificar(
+        image, clasificador.CATEGORIA_PASAPORTE, codigos.NO_ES_PASAPORTE)
+    if contenido is None:
+        return resto
+    respuesta = await funciones.procesa_pasaporte(contenido, mime, resto)
+    return codigos.cuerpo(codigos.de_extraccion(respuesta), **respuesta)
 
 @app.post(
         "/procesa_fm/", 

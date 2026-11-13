@@ -7,6 +7,7 @@ import httpx
 import ine
 import ine_atras
 import cedula_panama
+import pasaporte
 import codigos
 import herramientas
 from fastapi import UploadFile, HTTPException, status
@@ -20,7 +21,7 @@ SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 
 # Mapeo de endpoints por tipo de documento
 ENDPOINTS = {
-    "pasaporte": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/24ee194a233ec5cc:process",  # Endpoint Pasaporte
+    "pasaporte": f"https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/{pasaporte.PROCESSOR_ID}/processorVersions/{pasaporte.VERSION}:process",  # Processor "rad_pasaporte"
     "fm": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/edfba1d1c9ed6145:process",  # Endpoint Formas Migratorias
     "csf": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/339fc7810b01699b:process",  # Endpoint Sat CSF
     "cedula": "https://us-documentai.googleapis.com/v1/projects/62740263137/locations/us/processors/2da02220d55dabf1/processorVersions/pretrained-foundation-model-v1.5-pro-2025-06-20:process",  # Endpoint Cédula Profesional
@@ -30,7 +31,6 @@ ENDPOINTS = {
 
 # Mapeo de MIME types por tipo de documento
 MIME_TYPES = {
-    "pasaporte": "image/png",     # Imagen
     "fm": "image/png",             # Imagen
     "csf": "image/png",            # Imagen
     "cedula": "application/pdf",   # PDF
@@ -41,7 +41,6 @@ MIME_TYPES = {
 MIME_TYPES_PERMITIDOS = ("application/pdf", "image/jpeg", "image/png", "image/tiff", "image/webp")
 
 # Variables legadas para compatibilidad
-ENDPOINT_URL = ENDPOINTS["pasaporte"]
 ENDPOINT_FM = ENDPOINTS["fm"]
 ENDPOINT_CSF = ENDPOINTS["csf"]
 ENDPOINT_CEDULA = ENDPOINTS["cedula"]
@@ -165,11 +164,6 @@ async def procesa_documento(
 
 
 # Funciones wrapper para compatibilidad con app.py (mantienen la interfaz anterior)
-async def procesa_pasaporte(image: UploadFile):
-    """Procesa un pasaporte."""
-    return await procesa_documento(image, "pasaporte")
-
-
 async def procesa_fm(image: UploadFile):
     """Procesa una forma migratoria."""
     return await procesa_documento(image, "fm")
@@ -280,6 +274,7 @@ def _a_esquema_ine(entidades: dict) -> dict:
 ARMADORES = {
     "ine": lambda entidades, **kw: ine.armar_respuesta(_a_esquema_ine(entidades), **kw),
     "cedula_panama": cedula_panama.armar_respuesta,
+    "pasaporte": pasaporte.armar_respuesta,
 }
 
 
@@ -477,6 +472,11 @@ async def procesa_ine_atras(contenido: bytes, mime_type: str, clasificacion: Opt
     if clasificacion:
         respuesta["clasificacion"] = clasificacion
     return respuesta
+
+
+async def procesa_pasaporte(contenido: bytes, mime_type: str, clasificacion: Optional[dict] = None):
+    """Procesa un pasaporte (PDF o imagen): hoja de datos contrastada contra su MRZ TD3."""
+    return await _procesa(contenido, mime_type, "pasaporte", clasificacion)
 
 
 async def procesa_cedula_panama(contenido: bytes, mime_type: str, clasificacion: Optional[dict] = None):

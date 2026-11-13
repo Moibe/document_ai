@@ -1,4 +1,7 @@
-"""Mantiene `ine.py` de RAD igualado al de santander_ia.
+"""Mantiene `ine.py` y `pasaporte.py` de RAD igualados a los de santander_ia.
+
+`pasaporte.py` se deriva igual: sin el sello de cotejo y apuntando al processor de RAD
+(`rad_pasaporte`, ver PASAPORTE_* abajo). Lo que sigue describe `ine.py`.
 
 El `ine.py` de RAD NO se edita a mano: se DERIVA del de santander_ia con dos cambios fijos,
 
@@ -34,10 +37,10 @@ SANTANDER = os.environ.get("SANTANDER_IA") or os.path.normpath(os.path.join(RAIZ
 ULTIMA_SINCRONIZACION = "af35409"
 
 
-def de_santander(rev):
-    r = subprocess.run(["git", "-C", SANTANDER, "show", f"{rev}:ine.py"], capture_output=True, encoding="utf-8")
+def de_santander(rev, archivo="ine.py"):
+    r = subprocess.run(["git", "-C", SANTANDER, "show", f"{rev}:{archivo}"], capture_output=True, encoding="utf-8")
     if r.returncode != 0:
-        sys.exit(f"No pude leer ine.py de santander_ia en '{rev}' ({SANTANDER}):\n{r.stderr.strip()}")
+        sys.exit(f"No pude leer {archivo} de santander_ia en '{rev}' ({SANTANDER}):\n{r.stderr.strip()}")
     return r.stdout.replace("\r\n", "\n")
 
 
@@ -119,33 +122,80 @@ def _coincide(a: Any, b: Any, truncable: bool) -> bool:''')
     return s
 
 
+# Processor propio de RAD para el pasaporte (no se comparte el `santander_pasaporte`).
+# Se llenan tras correr `python crear_processor.py pasaporte`.
+PASAPORTE_DISPLAY_NAME = "rad_pasaporte"
+PASAPORTE_PROCESSOR_ID = "610ebca726249369"
+PASAPORTE_VERSION = "pretrained-foundation-model-v1.5-pro-2025-06-20"
+
+
+def derivar_pasaporte(s):
+    """`pasaporte.py` de RAD: el de santander_ia sin el sello de cotejo y con el processor de RAD."""
+    s = rep(s, "Hermano de `ine.py`, con la misma estructura de respuesta (datos / sello / mrz /\nvalidacion / avisos)",
+            "Hermano de `ine.py`, con la misma estructura de respuesta (datos / mrz /\nvalidacion / avisos)")
+    s = rep(s, "    limpiar_texto,\n    normalizar_fecha,\n)", "    limpiar_texto,\n)")
+    s = re.sub(r'^DISPLAY_NAME = "[^"]*"', f'DISPLAY_NAME = "{PASAPORTE_DISPLAY_NAME}"', s, count=1, flags=re.M)
+    s = re.sub(r'^PROCESSOR_ID = "[^"]*"', f'PROCESSOR_ID = "{PASAPORTE_PROCESSOR_ID}"', s, count=1, flags=re.M)
+    s = re.sub(r'^VERSION = "[^"]*"', f'VERSION = "{PASAPORTE_VERSION}"', s, count=1, flags=re.M)
+    s = rep(s, 'CAMPOS_SELLO = ("sello_fecha", "sello_reviso", "sello_clave_revisor")\n', "")
+    s = rep(s, "\n    El sello de cotejo es OPCIONAL: estos PDFs a veces lo traen y a veces no.\n", "")
+    s = rep(s, '"displayName": "Pasaporte Santander",', '"displayName": "Pasaporte RAD",')
+    s = rep(s, '"description": "Pasaporte, con el sello de cotejo de Santander cuando lo trae.",',
+            '"description": "Pasaporte de cualquier pais.",')
+    s = corta(s, "                # --- sello de cotejo de Santander, opcional ---", "                # --- reverso ---")
+    s = rep(s, "def validar(datos: Dict[str, Any], mrz: Dict[str, Any],\n            sello: Dict[str, Any], nacionalidad_codigo: Any = None)",
+            "def validar(datos: Dict[str, Any], mrz: Dict[str, Any], nacionalidad_codigo: Any = None)")
+    s = rep(s, "que todo se pudo revisar, separados porque un sello ausente no es lo mismo\n    que una identidad inconsistente.",
+            "que todo se pudo revisar, separados porque un dato ilegible no es lo mismo\n    que una identidad inconsistente.")
+    s = corta(s, "    # El sello es OPCIONAL en el pasaporte", "    return {\n        \"ok\": not discrepancias,")
+    s = corta(s, "    sello: Dict[str, Any] = {}\n    for campo in CAMPOS_SELLO", "    crudo_mrz = entidades.get(\"mrz\")")
+    s = rep(s, '        "sello": sello,\n', "")
+    s = rep(s, "validar(datos, mrz, sello, limpiar_texto(", "validar(datos, mrz, limpiar_texto(")
+    if "sello" in s:
+        lineas = [l for l in s.splitlines() if "sello" in l]
+        sys.exit("Quedó 'sello' en la derivación de pasaporte.py; ajusta `derivar_pasaporte`:\n" + "\n".join(lineas))
+    return s
+
+
+# Archivo de RAD -> (archivo en santander_ia, cómo se deriva)
+ARCHIVOS = {
+    INE_RAD: ("ine.py", derivar),
+    os.path.join(RAIZ, "pasaporte.py"): ("pasaporte.py", derivar_pasaporte),
+}
+
+
 def verificar():
-    actual = open(INE_RAD, encoding="utf-8").read().replace("\r\n", "\n")
-    esperado = derivar(de_santander(ULTIMA_SINCRONIZACION))
-    if actual == esperado:
-        print(f"OK: ine.py es exactamente la derivación del ine.py de santander_ia en {ULTIMA_SINCRONIZACION}")
-        return 0
-    print(f"ine.py NO coincide con la derivación de santander_ia en {ULTIMA_SINCRONIZACION}. Diferencias:")
-    for linea in difflib.unified_diff(esperado.splitlines(), actual.splitlines(),
-                                      "derivación", "ine.py", lineterm="", n=1):
-        print(linea)
-    print("\nAlguien editó ine.py a mano. Si el cambio es correcto, hay que llevarlo también a santander_ia "
-          "o agregarlo a `derivar`; si no, `--aplicar` lo deshace.")
-    return 1
+    falla = 0
+    for destino, (origen, fn) in ARCHIVOS.items():
+        nombre = os.path.basename(destino)
+        actual = open(destino, encoding="utf-8").read().replace("\r\n", "\n")
+        esperado = fn(de_santander(ULTIMA_SINCRONIZACION, origen))
+        if actual == esperado:
+            print(f"OK: {nombre} es exactamente la derivación del de santander_ia en {ULTIMA_SINCRONIZACION}")
+            continue
+        falla = 1
+        print(f"{nombre} NO coincide con la derivación de santander_ia en {ULTIMA_SINCRONIZACION}. Diferencias:")
+        for linea in difflib.unified_diff(esperado.splitlines(), actual.splitlines(),
+                                          "derivación", nombre, lineterm="", n=1):
+            print(linea)
+        print(f"\nAlguien editó {nombre} a mano. Si el cambio es correcto, hay que llevarlo también a "
+              "santander_ia o agregarlo a la derivación; si no, `--aplicar` lo deshace.")
+    return falla
 
 
 def aplicar(rev):
     global ULTIMA_SINCRONIZACION
-    nuevo = derivar(de_santander(rev))
     corto = commit_de(rev)
-    with open(INE_RAD, "w", encoding="utf-8", newline="") as f:
-        f.write(nuevo)
+    for destino, (origen, fn) in ARCHIVOS.items():
+        nuevo = fn(de_santander(rev, origen))
+        with open(destino, "w", encoding="utf-8", newline="") as f:
+            f.write(nuevo)
     # Se anota con qué commit quedó, en este mismo archivo
     fuente = open(__file__, encoding="utf-8").read()
     fuente = re.sub(r'^ULTIMA_SINCRONIZACION = "[^"]*"', f'ULTIMA_SINCRONIZACION = "{corto}"', fuente, count=1, flags=re.M)
     with open(__file__, "w", encoding="utf-8", newline="") as f:
         f.write(fuente)
-    print(f"ine.py reescrito desde santander_ia en {corto}.")
+    print(f"ine.py y pasaporte.py reescritos desde santander_ia en {corto}.")
     print("Siguiente paso: python generar_vectores_ine_ambas.py --verificar")
 
 
