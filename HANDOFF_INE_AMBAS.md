@@ -4,11 +4,13 @@ Documento para el agente que va a construir la versión de Alexis. El objetivo e
 sistema, con el motor de lectura que prefiera (OCR clásico, modelo de visión, lo que sea),
 responda **el mismo JSON** y **los mismos mensajes de error** que este endpoint de RAD.
 
-- **Qué documenta:** el comportamiento de RAD en `document_ai` commit `35e4d89` (rama `main`).
-- **Fecha:** 2026-11-11.
+- **Qué documenta:** el comportamiento de RAD en `document_ai` commit `bc83a16` (rama `main`).
+  Su validación de INE está **sincronizada con santander_ia** (commit `af35409`), menos el sello
+  y con el plegado de acentos de la sección 1.
+- **Fecha:** 2026-11-13.
 - **Repo (público):** https://github.com/Moibe/document_ai
 - **Casos de prueba ejecutables:** [`HANDOFF_INE_AMBAS_vectores.json`](HANDOFF_INE_AMBAS_vectores.json),
-  29 casos con entrada y salida exacta. Se regeneran con `python generar_vectores_ine_ambas.py`.
+  32 casos con entrada y salida exacta. Se regeneran con `python generar_vectores_ine_ambas.py`.
 
 **Orden de autoridad si algo se contradice:** (1) los vectores, (2) este documento,
 (3) el código de referencia. Si encuentras una contradicción real, avísale a Moibe en vez de
@@ -31,19 +33,19 @@ adivinar: es una diferencia que hay que resolver en RAD, no en tu sistema.
    en `frente.formato_credencial` y en `clasificacion.confianza`.
 5. **No existe `sello`.** Si ya conoces el `/ine` de santander_ia, este endpoint **no** trae el
    sello de cotejo: ni la llave, ni entradas `sello.*` en `sin_verificar`, ni avisos del sello.
-6. **Terminaste cuando** pasan los 29 vectores y la lista de la sección 12.
+6. **Terminaste cuando** pasan los 32 vectores y la lista de la sección 12.
 
 ### Orden de trabajo sugerido
 
 1. El esqueleto: la ruta, el sobre `codigo`/`estado`/`mensaje`, la tabla de desenlaces y la regla
-   de HTTP (sección 5). Con eso ya pasa el caso `24`.
+   de HTTP (sección 5). Con eso ya pasan los casos `24` y `32`.
 2. Las guardias del archivo (sección 10) y la precedencia (sección 4). Pasan `19` a `23` y `26` a
    `27`.
 3. El clasificador (sección 9). Pasan `16` a `18` y `28`.
 4. El parser de MRZ (8.2) y su dígito de control. Es la pieza más fácil de equivocar por un
    carácter: pruébala aparte.
-5. La validación (8.3 a 8.5), bloque por bloque en el orden del documento. Pasan `01` a `13`
-   y `29`.
+5. La validación (8.3 a 8.5), bloque por bloque en el orden del documento. Pasan `01` a `13`,
+   `29`, `30` y `31`.
 6. Las dos reglas de la cara equivocada, `228` y `227` (8.7 y sección 4). Pasan `14`, `15` y `25`.
 7. Tu motor de lectura, al final: hasta aquí trabajaste con las `entrada` de los vectores, que
    es justo lo que él tiene que producir.
@@ -63,8 +65,10 @@ Si ya tienes `HOMOLOGACION.md` de santander_ia, esto es lo que cambia para este 
 | Mensajes de rechazo | Sin prefijo | Prefijo `Archivo 'frente': ` o `Archivo 'atras': ` |
 | Comparación de nombres contra la MRZ | Sensible a acentos | **Ignora acentos** (`GONZÁLEZ` = `GONZALEZ`) |
 | `clasificacion_atras` | No | Sí |
-| Reacomodo de nombre y apellidos con la MRZ | Sí | **No** (ver sección 11) |
-| Aviso por dígito en los primeros 4 caracteres de la CURP | Sí | **No** (ver sección 11) |
+
+**Todo lo demás de la validación es idéntico**, incluidas las dos reglas más recientes de
+santander_ia: el reacomodo de apellidos y nombre con la MRZ (8.5) y la discrepancia por dígito en
+las primeras 4 posiciones de la CURP (8.3, bloque 2).
 
 ---
 
@@ -242,24 +246,27 @@ en la práctica es `frente` primero; implementa la regla como está escrita.
 
 ### El `422`
 
-Estándar objetivo, el mismo que usa santander_ia: el sobre normal más la lista de errores de
-validación del framework en `errores`.
+Es el sobre normal más la lista de errores de validación del framework en `errores`, el mismo
+formato que usa santander_ia. El contenido de `errores` es del framework de cada sistema y no se
+compara; lo que cuenta es `codigo`, `estado` y el HTTP 422.
 
 ```json
 { "codigo": 422, "estado": "PETICION_INVALIDA",
   "mensaje": "La petición no es válida. Se espera multipart/form-data con un campo de archivo.",
-  "errores": [ { "...": "detalle del framework" } ] }
+  "errores": [ { "type": "missing", "loc": ["body", "atras"], "msg": "Field required", "input": null } ] }
 ```
-
-> **RAD hoy no cumple este punto**: responde el cuerpo por defecto de FastAPI
-> (`{"detail": [...]}`) con HTTP 422. Sección 11. Implementa el estándar objetivo; el HTTP 422 ya
-> coincide.
 
 ### Errores inesperados
 
-Una excepción no prevista debería responder `500 ERROR_INTERNO` con el sobre de tres llaves.
-RAD hoy no lo hace: responde HTTP 500 con el texto plano `Internal Server Error`. También está
-en la sección 11.
+Una excepción que nadie previó responde `500 ERROR_INTERNO` con el sobre de tres llaves
+(`{ "codigo": 500, "estado": "ERROR_INTERNO", "mensaje": "Error interno de la API." }`) y se
+registra en el log. Caso `32`.
+
+> En RAD el `422` con sobre y el `500` con sobre valen para los endpoints nuevos (`/procesa_ine`,
+> `/procesa_ine_atras`, `/procesa_ine_ambas` y `/procesa_cedula_panama`). Los endpoints anteriores
+> de RAD conservan el cuerpo por defecto de FastAPI y el texto plano `Internal Server Error`, para
+> no cambiarle la forma a quien ya los lee. Eso no afecta a tu implementación: en este endpoint,
+> toda respuesta lleva el sobre.
 
 ---
 
@@ -461,8 +468,8 @@ salida**: sigue el orden en que se evalúan las comprobaciones.
 ### 6.5 `avisos`
 
 Lista de cadenas, vacía en el caso normal. Son cosas que la API no puede decidir sola. Hay
-exactamente tres formas (sección 8.8), y salen en este orden: correcciones con la MRZ, bloques
-repetidos, valores que no aparecen en el texto.
+exactamente cuatro formas (sección 8.8), y salen en este orden: corrección de letras de más con la
+MRZ, reacomodo con la MRZ, bloques repetidos, valores que no aparecen en el texto.
 
 ### 6.6 `clasificacion` y `clasificacion_atras`
 
@@ -479,8 +486,8 @@ El veredicto del clasificador para el `frente` y para el `atras`:
 - `caracteres_leidos`: cuántos caracteres leyó el OCR. Puede faltar si el clasificador falló. No se
   compara.
 
-> En un rechazo `227` la llave `clasificacion` debería llevar el veredicto del `atras`, que es el
-> archivo con el problema. RAD hoy manda el del `frente` (sección 11): no lo compares.
+> En un rechazo, `clasificacion` lleva el veredicto del archivo que lo originó: el del `atras` en
+> un `227`, el del `frente` en un `228`, y el del archivo rechazado en un `220` o `221`.
 
 ---
 
@@ -678,7 +685,11 @@ Con la MRZ íntegra, `abreviado` es `true` si `campo_truncado` está presente:
     `curp (dígito verificador)`; distinto → `discrepancias` +=
     `curp: el dígito verificador no cuadra, la CURP trae '{curp[17]}' y el cálculo da '{esperado}'`.
 - Si no cumple: `sin_verificar` += `CURP (formato inválido: '{curp}')`, con `ausente` en lugar de
-  `{curp}` cuando está vacía.
+  `{curp}` cuando está vacía. **Y además**, si `curp` mide 18 caracteres y alguna de las **4
+  primeras** no es una letra: `discrepancias` += `curp: los primeros 4 caracteres deben ser letras y trae '{curp[:4]}'`.
+  Las 4 primeras posiciones son siempre letras (las iniciales del nombre); un dígito ahí es una
+  lectura errónea del OCR (`MAMI` leído `MAM1`, una `O` leída `0`). **No se corrige el valor**, solo
+  se señala. Va después de la entrada de `sin_verificar`. Caso `31`.
 
 **Dígito verificador de la CURP.** Diccionario `0123456789ABCDEFGHIJKLMNÑOPQRSTUVWXYZ`. Para las
 primeras 17 posiciones, `suma = Σ índice_en_el_diccionario(carácter_i) × (18 − i)` con `i` desde 0;
@@ -741,11 +752,20 @@ ok = (discrepancias está vacía)    completo = (sin_verificar está vacía)
 En `coincidencias`, `discrepancias` y `sin_verificar` el orden es el de aparición según 8.3:
 MRZ → CURP → clave de elector → domicilio. Es el mismo orden del ejemplo de 6.1.
 
-### 8.5 Corrección de nombres con la MRZ
+### 8.5 Correcciones con la MRZ
 
-Cuando el OCR pega una letra de más a un apellido o nombre (`LARA` leído `LARAS`), la MRZ, que
-va en una tipografía hecha para OCR, trae el valor bien. Se corrige `frente` con el de la MRZ
-**solo si se cumplen todas**:
+Hay dos, y en las dos la MRZ es la fuente buena (va en una tipografía hecha para OCR). Se aplican
+en este orden: primero la A y luego la B. Cada una, **si actúa**:
+
+- deja un aviso (8.8);
+- quita de `coincidencias` las etiquetas de los campos que tocó, porque comparar un valor contra
+  la fuente de la que salió es circular y no prueba nada. Eso se hace **después** de validar;
+- deja el código en `211`, no en `210`.
+
+#### A. Una letra de más
+
+Cuando el OCR pega una letra de más a un apellido o nombre (`LARA` leído `LARAS`), se corrige
+`frente` con el valor de la MRZ **solo si se cumplen todas**:
 
 - La MRZ es íntegra (`integra`).
 - No hay `campo_truncado` (si el renglón de nombres llegó al borde, el formato abrevia y el valor
@@ -755,24 +775,57 @@ va en una tipografía hecha para OCR, trae el valor bien. Se corrige `frente` co
   un apellido compuesto).
 
 Se revisan, en este orden, `apellido_paterno` (contra `mrz.apellido_paterno`), `apellido_materno`
-(contra `mrz.apellido_materno`) y `nombre` (contra `mrz.nombres`). Cada corrección produce un
-aviso (8.8) y **el campo corregido deja de contar como coincidencia**: se quita de
-`coincidencias` la etiqueta `apellido_paterno (MRZ)`, `apellido_materno (MRZ)` o `nombre (MRZ)`,
-porque comparar un valor contra la fuente de la que salió es circular. Eso se hace **después**
-de validar. El código queda en `211`, no en `210`. Caso `07`.
+(contra `mrz.apellido_materno`) y `nombre` (contra `mrz.nombres`). Cada campo corregido produce un
+aviso y pierde su etiqueta `apellido_paterno (MRZ)`, `apellido_materno (MRZ)` o `nombre (MRZ)` en
+`coincidencias`. Caso `07`.
+
+#### B. Las palabras correctas en el campo equivocado
+
+El OCR leyó bien las palabras pero el motor las asignó al campo que no era. Caso real: la
+credencial imprime `VENTURA`, `GARCIA` y `URBANO` bajo NOMBRE y el motor devolvió paterno
+`GARCIA`, materno `URBANO` y nombre `VENTURA`; la MRZ trae `VENTURA<GARCIA<<URBANO`, donde el `<<`
+separa los apellidos del nombre. Se reasignan los tres campos con el reparto de la MRZ **solo si
+se cumplen todas**:
+
+- La MRZ es íntegra y no tiene `campo_truncado`.
+- Los tres campos del frente y los tres de la MRZ tienen valor.
+- El nombre del frente **no** coincide con el de la MRZ, comparando las palabras plegadas. (Si
+  coincide y solo cambia el reparto entre los apellidos, es un apellido compuesto y eso ya lo
+  resuelve 8.3.)
+- Las palabras de los tres campos del frente, juntas, son **las mismas** que las de los tres campos
+  de la MRZ (plegadas). Se recorre la MRZ en su orden (paterno, materno, nombre) y cada palabra se
+  busca entre las del frente que aún no se usaron; si falta alguna, o sobra alguna, no se hace nada.
+  **Las palabras que se asignan son las del frente**, con su `Ñ` y sus acentos, no las de la MRZ.
+- La CURP o la clave de elector, que son lectura independiente de la MRZ, codifican las iniciales
+  del orden de la MRZ y **no** las del orden del frente. Los *testigos* son `esperadas_curp` (8.3,
+  bloque 3) y `clave[:6]` si la clave mide 18, los que midan 6. `derivadas(p, m, n)` es el conjunto
+  de `iniciales(p) + iniciales(m) + iniciales(nombre_clave(n))`, con y sin saltar partículas, que
+  midan 6. La condición es que **algún testigo esté en `derivadas(<los nuevos>)`** y **ningún
+  testigo esté en `derivadas(<los leídos>)`**. Sin testigos no se hace nada: sin esa segunda fuente
+  no hay forma de saber cuál de los dos repartos es el bueno.
+
+Si actúa, **los tres** campos pierden su etiqueta `... (MRZ)` en `coincidencias`. Aviso:
+
+```
+frente: apellidos y nombre reacomodados con la MRZ: se leyó paterno '{p}', materno '{m}', nombre '{n}' y la MRZ trae paterno '{p2}', materno '{m2}', nombre '{n2}'
+```
+
+donde los tres últimos son los valores nuevos, es decir, las palabras del frente ya reasignadas.
+Caso `30`.
 
 ### 8.6 El orden completo de armado de la respuesta
 
 1. `frente`: para cada llave de 6.2 que exista, normalizar (8.1); limpiar el domicilio.
 2. `formato_credencial` y `no_impresos`.
 3. Localizar y parsear la MRZ (8.2); `origen`.
-4. Corrección con la MRZ (8.5) → avisos.
-5. Bloques repetidos → avisos.
-6. Valores que no aparecen en el texto → avisos.
-7. `validar` (8.3) y quitar las etiquetas circulares (8.5).
-8. Revisar la cara correcta de cada archivo (sección 4, paso 5); si falla, es `228` o `227` y
+4. Corrección de letras de más con la MRZ (8.5 A) → avisos.
+5. Reacomodo con la MRZ (8.5 B) → avisos.
+6. Bloques repetidos → avisos.
+7. Valores que no aparecen en el texto → avisos.
+8. `validar` (8.3) y quitar las etiquetas circulares (8.5).
+9. Revisar la cara correcta de cada archivo (sección 4, paso 5); si falla, es `228` o `227` y
    no se devuelve nada de lo anterior.
-9. Calcular el código (sección 5) y agregar `clasificacion` y `clasificacion_atras`.
+10. Calcular el código (sección 5) y agregar `clasificacion` y `clasificacion_atras`.
 
 ### 8.7 Cuándo el anverso es en realidad un reverso (`228`)
 
@@ -785,11 +838,12 @@ Las **tres** condiciones, juntas (la conjunción evita rechazar un anverso mal l
 
 Un PDF con las dos caras en un solo archivo **no** cae aquí, porque su anverso sí trae CURP.
 
-### 8.8 Avisos: las tres únicas formas
+### 8.8 Avisos: las cuatro únicas formas
 
 | Aviso | Cuándo |
 |---|---|
-| `frente.{campo} corregido con la MRZ: se leyó '{leído}' y la MRZ trae '{mrz}'` | Corrección de 8.5. `{campo}` es `apellido_paterno`, `apellido_materno` o `nombre` |
+| `frente.{campo} corregido con la MRZ: se leyó '{leído}' y la MRZ trae '{mrz}'` | Corrección A de 8.5. `{campo}` es `apellido_paterno`, `apellido_materno` o `nombre` |
+| `frente: apellidos y nombre reacomodados con la MRZ: se leyó paterno '{p}', materno '{m}', nombre '{n}' y la MRZ trae paterno '{p2}', materno '{m2}', nombre '{n2}'` | Reacomodo B de 8.5 |
 | `el PDF contiene {n} bloques '{tipo}': se conservó el primero, revisa que el documento no traiga más de una identidad` | El motor devolvió más de un bloque del mismo `{tipo}` (por ejemplo `domicilio`) en el anverso. Se conserva el **primero**. Opcional si tu motor no puede detectarlo. **Si tu flujo acepta PDFs de varias páginas, trátalo como bloqueante** |
 | `frente.{campo}='{valor}' no aparece literal en el texto leído` | Ver abajo |
 
@@ -797,7 +851,7 @@ Un PDF con las dos caras en un solo archivo **no** cae aquí, porque su anverso 
 caracteres**, y que no es una fecha ISO ni `formato_credencial` ni `no_impresos`, si el valor
 **no es subcadena** del `texto_ocr` (el de los dos archivos juntos, comparación exacta, con
 mayúsculas) se avisa. Un valor así es uno que el motor compuso en vez de leer. Se evalúa **después**
-de las correcciones con la MRZ. `domicilio` es un objeto y no se evalúa; `sexo`, `numero_emision`
+de las dos correcciones con la MRZ (8.5). `domicilio` es un objeto y no se evalúa; `sexo`, `numero_emision`
 y las claves de tres caracteres o menos tampoco, por su longitud.
 
 ---
@@ -881,31 +935,26 @@ cliente los declare como `image/jpeg`.
 
 ---
 
-## 11. Diferencias conocidas y decisiones pendientes
+## 11. Decisiones pendientes
 
-Cosas en las que RAD **hoy** no es como debería, o difiere de santander_ia. Están aquí para que
-no las repliques por accidente ni te sorprendan al comparar. **Mientras Moibe no decida otra
-cosa, implementa lo escrito en las secciones anteriores.**
+RAD está sincronizado con santander_ia (`af35409`) y cumple el estándar de errores de la sección
+5, así que en este endpoint ya no quedan diferencias de comportamiento con el resto. Quedan **dos
+decisiones abiertas** de Moibe. **Mientras no las tome, implementa lo escrito en las secciones
+anteriores** y no inventes una solución propia en estos dos puntos.
 
-1. **`422` sin el sobre.** RAD responde el cuerpo por defecto de FastAPI. El estándar objetivo
-   es el de la sección 5. *Implementa el estándar objetivo.*
-2. **Sin captura de errores inesperados.** RAD no responde `500 ERROR_INTERNO` con el sobre ante
-   una excepción no prevista. *Impleméntalo.*
-3. **`227` y `clasificacion`.** RAD pone en `clasificacion` el veredicto del `frente` aunque el
-   problema sea el `atras`. *Pon el del `atras`.* Los vectores marcan ese campo como no comparable.
-4. **Dos reglas que santander_ia tiene y RAD todavía no.** (a) El **reacomodo** de apellidos y
-   nombre cuando el motor puso las palabras correctas en el campo equivocado, con su aviso
-   `frente: apellidos y nombre reacomodados con la MRZ: ...`. (b) La discrepancia
-   `curp: los primeros 4 caracteres deben ser letras y trae '{...}'`. *No las implementes en este
-   endpoint hasta que RAD las tenga.*
-5. **La `Ñ` en las iniciales de la clave de elector.** La CURP sustituye la `Ñ` por `X`, pero
+1. **La `Ñ` en las iniciales de la clave de elector.** La CURP sustituye la `Ñ` por `X`, pero
    `iniciales()` la vuelve `N` al quitar acentos. Un anverso con `PEÑA`, `MUÑOZ` o `NUÑEZ` puede
    dar un `210` falso (`nombre: no concuerda con CURP ni clave de elector`). Pasa igual en
-   santander_ia. *Pendiente de decisión y de verificar con una credencial real; los vectores
-   evitan a propósito apellidos con `Ñ`.*
-6. **Numeración compartida.** santander_ia usa `226` y `227` para `SIN_DOMICILIO` y
+   santander_ia. Se comprobó con datos sintéticos; falta confirmarlo con una credencial real y
+   decidir si se corrige en los dos sistemas a la vez. Los vectores evitan a propósito apellidos
+   con `Ñ`.
+2. **Numeración compartida.** santander_ia usa `226` y `227` para `SIN_DOMICILIO` y
    `NO_ES_ESTADO_CUENTA`; RAD usa `227` para `NO_ES_REVERSO_INE`. Si un mismo consumidor integra
-   los dos sistemas, el `codigo` solo no basta: desambigua con `estado`. *Pendiente de decisión.*
+   los dos sistemas, el `codigo` solo no basta: desambigua con `estado`.
+
+**Mantenerlo al día.** Si santander_ia cambia su `ine.py`, hay que volver a sincronizar el de RAD
+(menos el sello, y con el plegado de acentos) y regenerar los vectores. El comando
+`python generar_vectores_ine_ambas.py --verificar` dice si el contrato cambió.
 
 ---
 
@@ -913,9 +962,9 @@ cosa, implementa lo escrito en las secciones anteriores.**
 
 Antes de dar por terminado:
 
-- [ ] Los **29 vectores** pasan. Los casos `19` a `24` y `26` a `28` solo dependen de las
-      guardias (su `entrada` describe el archivo: tipo declarado y contenido, para que lo
-      fabriques); los `01` a `18`, `25` y `29` de la capa de validación (su `entrada` trae
+- [ ] Los **32 vectores** pasan. Los casos `19` a `24`, `26` a `28` y `32` solo dependen de las
+      guardias y del sobre (su `entrada` describe el archivo: tipo declarado y contenido, para que
+      lo fabriques); los `01` a `18`, `25` y `29` a `31` de la capa de validación (su `entrada` trae
       `campos` y `texto_ocr` de cada archivo).
 - [ ] En cada caso se compara `http_status` y `salida_esperada`, salvo lo que liste `no_comparar`
       (llaves de `salida_esperada`; si dice `salida_esperada` completa, solo se compara el HTTP).
@@ -941,7 +990,7 @@ referencia), con el mismo par de archivos de una misma credencial:
 | El mismo frente en los dos campos | `227` (el campo `atras` no trae MRZ) |
 | El mismo reverso en los dos campos | `228` |
 | Frente de una persona con el reverso de otra | `210`, con discrepancias en nacimiento, nombre, sección y vigencia |
-| Falta un campo | HTTP `422` |
+| Falta un campo | HTTP `422`, con el sobre |
 
 **Latencia:** en las pruebas de RAD este endpoint tardó entre 22 y 29 segundos, porque hace dos
 lecturas y dos clasificaciones. Los consumidores configuran un timeout holgado; si tu motor es
@@ -951,7 +1000,7 @@ más rápido, mejor, pero eso no cambia el contrato.
 
 ## 13. Referencia de código
 
-Fijado al commit `35e4d89` de https://github.com/Moibe/document_ai :
+Fijado al commit `bc83a16` de https://github.com/Moibe/document_ai :
 
 | Archivo | Qué tiene |
 |---|---|
@@ -961,11 +1010,12 @@ Fijado al commit `35e4d89` de https://github.com/Moibe/document_ai :
 | `archivo.py` | Guardias del archivo (sección 10) |
 | `clasificador.py` | `es_categoria` y la lógica de `hoja_en_blanco` (sección 9) |
 | `funciones.py` | `_procesa`: el flujo de 4 a 6, `_parece_reverso` (8.7) y la traducción de errores del motor |
-| `app.py` | `procesa_documento_ine_ambas` y `_revisar_y_clasificar`: el flujo de 1 a 3 y la precedencia |
-| `generar_vectores_ine_ambas.py` | Genera los vectores corriendo el endpoint real con datos ficticios |
+| `app.py` | `procesa_documento_ine_ambas` y `_revisar_y_clasificar`: el flujo de 1 a 3 y la precedencia; los manejadores del `422` y del `500` con sobre |
+| `generar_vectores_ine_ambas.py` | Genera los vectores corriendo el endpoint real con datos ficticios; con `--verificar` comprueba que el contrato no haya cambiado |
 
 El repo **no declara licencia**. Implementar desde este contrato no tiene ese problema; si vas a
 copiar código literal (por ejemplo las tablas), confírmalo antes con Moibe.
 
 Si cambia la lógica de RAD, hay que volver a correr `generar_vectores_ine_ambas.py` y revisar el
-diff del JSON: **ese diff es el cambio de contrato**.
+diff del JSON: **ese diff es el cambio de contrato**. Con `--verificar` no escribe nada y avisa
+qué casos cambiaron.
