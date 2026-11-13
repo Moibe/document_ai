@@ -4,7 +4,7 @@ Documento para el agente que va a construir la versión de Alexis. El objetivo e
 sistema, con el motor de lectura que prefiera (OCR clásico, modelo de visión, lo que sea),
 responda **el mismo JSON** y **los mismos mensajes de error** que este endpoint de RAD.
 
-- **Qué documenta:** el comportamiento de RAD en `document_ai` commit `bc83a16` (rama `main`).
+- **Qué documenta:** el comportamiento de RAD en `document_ai` commit `10f3a06` (rama `main`).
   Su validación de INE está **sincronizada con santander_ia** (commit `af35409`), menos el sello
   y con el plegado de acentos de la sección 1.
 - **Fecha:** 2026-11-13.
@@ -1000,7 +1000,7 @@ más rápido, mejor, pero eso no cambia el contrato.
 
 ## 13. Referencia de código
 
-Fijado al commit `bc83a16` de https://github.com/Moibe/document_ai :
+Fijado al commit `10f3a06` de https://github.com/Moibe/document_ai :
 
 | Archivo | Qué tiene |
 |---|---|
