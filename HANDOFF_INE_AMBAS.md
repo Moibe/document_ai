@@ -952,9 +952,12 @@ anteriores** y no inventes una solución propia en estos dos puntos.
    `NO_ES_ESTADO_CUENTA`; RAD usa `227` para `NO_ES_REVERSO_INE`. Si un mismo consumidor integra
    los dos sistemas, el `codigo` solo no basta: desambigua con `estado`.
 
-**Mantenerlo al día.** Si santander_ia cambia su `ine.py`, hay que volver a sincronizar el de RAD
-(menos el sello, y con el plegado de acentos) y regenerar los vectores. El comando
-`python generar_vectores_ine_ambas.py --verificar` dice si el contrato cambió.
+**Mantenerlo al día.** El `ine.py` de RAD no se edita a mano: se deriva del de santander_ia con
+`python sincronizar_ine.py --aplicar` (menos el sello, y con el plegado de acentos), y
+`python sincronizar_ine.py --verificar` avisa si alguien lo editó directamente. Después,
+`python generar_vectores_ine_ambas.py --verificar` dice si el contrato cambió. Si implementas
+contra este documento, **revisa el diff de `HANDOFF_INE_AMBAS_vectores.json` cada vez que
+actualices el repo**: ese diff es el cambio de contrato.
 
 ---
 
