@@ -5,3 +5,7 @@ __pycache__/
 *.env
 documentai_sa.json
 /muestras/
+
+# Llaves y uso (uso.py): datos del servidor, no van al repo
+rad.db
+rad.db-*

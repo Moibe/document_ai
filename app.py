@@ -8,6 +8,8 @@ import codigos
 import funciones
 import guia
 import herramientas
+import uso
+import admin
 from io import BytesIO
 from pathlib import Path
 from typing import Optional
@@ -31,6 +33,13 @@ app = FastAPI(
     description="Reconocimiento avanzado de documentos via computer vision.",
     version="0.0.0"
 )
+
+# Llaves y registro de uso (uso.py). Fase 1, observación: se anota cada petición a
+# /procesa_* con la llave que traiga en X-API-Key, pero ninguna se rechaza por no
+# traerla. La administración (crear/revocar llaves, consultar uso) va en /admin.
+uso.iniciar()
+app.add_middleware(uso.RegistroDeUso)
+app.include_router(admin.router)
 
 @app.exception_handler(codigos.ErrorAPI)
 async def _error_api(request: Request, exc: codigos.ErrorAPI):
@@ -247,6 +256,7 @@ async def _revisar_y_clasificar(file: UploadFile, categoria: str, no_es, campo: 
 
     permitidos = funciones.MIME_TYPES_PERMITIDOS
     if not file.content_type or file.content_type not in permitidos:
+        uso.anotar_archivo(file.content_type)
         raise codigos.ErrorAPI(
             codigos.ARCHIVO_NO_SOPORTADO,
             decir(f"Tipo de archivo no soportado: {file.content_type or 'desconocido'}. "
@@ -270,12 +280,19 @@ async def _revisar_y_clasificar(file: UploadFile, categoria: str, no_es, campo: 
     mime = real if real in permitidos else file.content_type
     if mime != file.content_type:
         logger.warning(f"El cliente declaró {file.content_type} pero el contenido es {mime}; se usa {mime}.")
+    veredicto = None
     try:
-        archivo.revisar(contenido, mime)
-    except codigos.ErrorAPI as e:
-        raise codigos.ErrorAPI(e.desenlace, decir(e.mensaje))
+        try:
+            archivo.revisar(contenido, mime)
+        except codigos.ErrorAPI as e:
+            raise codigos.ErrorAPI(e.desenlace, decir(e.mensaje))
 
-    veredicto = await clasificador.clasificar(contenido, mime)
+        veredicto = await clasificador.clasificar(contenido, mime)
+    finally:
+        # Para el registro de uso: el tipo real del archivo y lo que dijo el
+        # clasificador (nada del contenido del documento).
+        uso.anotar_archivo(mime, veredicto)
+
     if clasificador.es_categoria(veredicto, categoria):
         return contenido, mime, veredicto
 

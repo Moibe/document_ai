@@ -7,7 +7,9 @@ trae los datos: dice si se sostienen entre sí.
 
 - **Base URL**: `http://SERVIDOR_RAD`
 - **Swagger interactivo** (para probar desde el navegador): `/docs`
-- **Autenticación**: ninguna, por ahora.
+- **Llave de acceso**: cabecera `X-API-Key: rad_…` en cada petición. **Hoy es opcional**: si
+  todavía no tienes llave, RAD te sigue respondiendo igual. Pídela y empieza a mandarla ya: más
+  adelante será obligatoria y se avisará con tiempo antes de exigirla.
 - **Llamadas desde tu backend**, no desde el navegador: RAD no envía cabeceras CORS, así que una
   página en otro origen no puede leer la respuesta.
 
