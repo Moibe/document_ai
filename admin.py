@@ -14,15 +14,19 @@ los clientes de RAD, y a ellos esto no les toca.
     POST /admin/keys/{id}/revocar     la marca revocada (no la borra)
     GET  /admin/uso                   filas de uso, nuevas primero, paginadas con
                                       `antes_de` = `siguiente` de la página anterior
-    GET  /admin/uso/resumen           conteos; `agrupar=dia,cliente,endpoint,codigo…`
+    GET  /admin/uso/resumen           conteos; `agrupar=` combinación de dia, hora,
+                                      cliente, llave, endpoint, codigo, status,
+                                      resultado, ip, agente
 
 Filtros comunes de /admin/uso y /admin/uso/resumen: `desde` (incluye) y `hasta`
 (excluye) en ISO UTC (basta 'AAAA-MM-DD'), `api_key_id`, `llave` (valida, sin_llave,
-invalida, revocada) y `endpoint` (sin diagonal final, p. ej. /procesa_ine_ambas).
+invalida, revocada), `endpoint` (sin diagonal final, p. ej. /procesa_ine_ambas) y
+`resultado` (procesado, no_procesado, error: ver uso.RESULTADOS). Cada fila de
+/admin/uso trae ya su `resultado`.
 """
 import hmac
 import os
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -42,6 +46,9 @@ def _exigir_token(authorization: Optional[str] = Header(default=None)) -> None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token de administración inválido.",
                             headers={"WWW-Authenticate": "Bearer"})
 
+
+# Valores de `resultado` (uso.RESULTADOS); Literal para que FastAPI responda 422 con otro.
+Resultado = Literal["procesado", "no_procesado", "error"]
 
 router = APIRouter(prefix="/admin", include_in_schema=False, dependencies=[Depends(_exigir_token)])
 
@@ -76,19 +83,20 @@ def revocar_llave(llave_id: int):
 @router.get("/uso")
 def listar_uso(desde: Optional[str] = None, hasta: Optional[str] = None,
                api_key_id: Optional[int] = None, llave: Optional[str] = None,
-               endpoint: Optional[str] = None, antes_de: Optional[int] = None,
+               endpoint: Optional[str] = None, resultado: Optional[Resultado] = None,
+               antes_de: Optional[int] = None,
                limite: int = Query(default=100, ge=1, le=1000)):
-    return uso.listar_uso(desde, hasta, api_key_id, llave, endpoint, antes_de, limite)
+    return uso.listar_uso(desde, hasta, api_key_id, llave, endpoint, antes_de, limite, resultado)
 
 
 @router.get("/uso/resumen")
 def resumir_uso(agrupar: str = "dia", desde: Optional[str] = None, hasta: Optional[str] = None,
                 api_key_id: Optional[int] = None, llave: Optional[str] = None,
-                endpoint: Optional[str] = None,
+                endpoint: Optional[str] = None, resultado: Optional[Resultado] = None,
                 offset_min: int = Query(default=-360, ge=-840, le=840)):
     try:
         filas = uso.resumir_uso([c.strip() for c in agrupar.split(",")], desde, hasta,
-                                api_key_id, llave, endpoint, offset_min)
+                                api_key_id, llave, endpoint, offset_min, resultado)
     except ValueError as e:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(e))
     return {"filas": filas}

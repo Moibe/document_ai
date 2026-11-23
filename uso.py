@@ -182,10 +182,25 @@ def _identificar(con: sqlite3.Connection, llave: Optional[str]):
 
 # --- consulta del uso -------------------------------------------------------
 
-def _filtros(desde, hasta, api_key_id, llave, endpoint):
+# Desenlace de cada petición en tres cubetas, definido UNA vez (aquí) para agrupar,
+# filtrar y marcar cada fila. Los endpoints viejos no traen sobre (codigo null): ahí
+# solo cuenta el status HTTP.
+#   procesado     21x/200: se extrajeron datos
+#   no_procesado  22x: se evaluó y no se pudo extraer (no era el documento, en blanco…)
+#   error         status HTTP >= 400 (el codigo coincide con el status)
+RESULTADOS = ("procesado", "no_procesado", "error")
+_RESULTADO_SQL = ("CASE WHEN u.status_http >= 400 THEN 'error' "
+                  "WHEN u.codigo BETWEEN 220 AND 299 THEN 'no_procesado' "
+                  "ELSE 'procesado' END")
+
+
+def _filtros(desde, hasta, api_key_id, llave, endpoint, resultado=None):
     """WHERE común a la lista y al resumen. `desde` incluye, `hasta` excluye; ambos
     en ISO UTC (basta 'AAAA-MM-DD')."""
     condiciones, params = [], []
+    if resultado:
+        condiciones.append(f"({_RESULTADO_SQL}) = ?")
+        params.append(resultado)
     if desde:
         condiciones.append("u.fecha >= ?")
         params.append(desde)
@@ -206,17 +221,18 @@ def _filtros(desde, hasta, api_key_id, llave, endpoint):
 
 
 def listar_uso(desde=None, hasta=None, api_key_id=None, llave=None, endpoint=None,
-               antes_de: Optional[int] = None, limite: int = 100) -> Dict[str, Any]:
+               antes_de: Optional[int] = None, limite: int = 100,
+               resultado: Optional[str] = None) -> Dict[str, Any]:
     """Filas de uso, de la más nueva a la más vieja. Se pagina con `antes_de` (el id
     de la última fila recibida); `siguiente` es el valor para la página que sigue."""
-    where, params = _filtros(desde, hasta, api_key_id, llave, endpoint)
+    where, params = _filtros(desde, hasta, api_key_id, llave, endpoint, resultado)
     if antes_de is not None:
         where = (where + " AND " if where else "WHERE ") + "u.id < ?"
         params.append(antes_de)
     con = conectar()
     try:
         filas = con.execute(f"""
-            SELECT u.*, k.cliente, k.prefijo
+            SELECT u.*, k.cliente, k.prefijo, {_RESULTADO_SQL} AS resultado
             FROM uso u LEFT JOIN api_keys k ON k.id = u.api_key_id
             {where} ORDER BY u.id DESC LIMIT ?""", (*params, limite + 1)).fetchall()
     finally:
@@ -229,36 +245,46 @@ def listar_uso(desde=None, hasta=None, api_key_id=None, llave=None, endpoint=Non
 # Columnas por las que se puede agrupar el resumen (lista cerrada: van al SQL).
 AGRUPABLES = {
     "dia": "dia",
+    "hora": "hora",
     "cliente": "u.api_key_id, k.cliente, k.prefijo",
     "llave": "u.llave",
     "endpoint": "u.endpoint",
     "codigo": "u.codigo, u.estado",
     "status": "u.status_http",
+    "resultado": "resultado",
     "ip": "u.ip",
+    "agente": "u.agente",
 }
 _COLUMNAS_SELECT = {
     "dia": "strftime('%Y-%m-%d', u.fecha, ? || ' minutes') AS dia",
+    "hora": "strftime('%Y-%m-%dT%H', u.fecha, ? || ' minutes') AS hora",
     "cliente": "u.api_key_id, k.cliente, k.prefijo",
     "llave": "u.llave",
     "endpoint": "u.endpoint",
     "codigo": "u.codigo, u.estado",
     "status": "u.status_http",
+    "resultado": f"{_RESULTADO_SQL} AS resultado",
     "ip": "u.ip",
+    "agente": "u.agente",
 }
+# Las que se cortan en hora local: llevan el offset como parámetro del SELECT.
+_CON_OFFSET = ("dia", "hora")
 
 
 def resumir_uso(agrupar: Iterable[str], desde=None, hasta=None, api_key_id=None,
-                llave=None, endpoint=None, offset_min: int = -360) -> List[Dict[str, Any]]:
-    """Conteos agrupados. `agrupar` es una combinación de AGRUPABLES. `dia` se corta
-    en la hora local que diga `offset_min` (minutos respecto de UTC; -360 es el
-    centro de México, que ya no cambia de horario)."""
+                llave=None, endpoint=None, offset_min: int = -360,
+                resultado: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Conteos agrupados. `agrupar` es una combinación de AGRUPABLES. `dia` y `hora`
+    se cortan en la hora local que diga `offset_min` (minutos respecto de UTC; -360
+    es el centro de México, que ya no cambia de horario); `hora` sale como
+    'AAAA-MM-DDTHH'."""
     columnas = [c for c in dict.fromkeys(agrupar) if c in AGRUPABLES]
     if not columnas:
         raise ValueError(f"agrupar debe incluir alguna de: {', '.join(AGRUPABLES)}")
-    where, params = _filtros(desde, hasta, api_key_id, llave, endpoint)
+    where, params = _filtros(desde, hasta, api_key_id, llave, endpoint, resultado)
     select = ", ".join(_COLUMNAS_SELECT[c] for c in columnas)
     group = ", ".join(AGRUPABLES[c] for c in columnas)
-    params_select = [f"{int(offset_min):+d}"] if "dia" in columnas else []
+    params_select = [f"{int(offset_min):+d}" for c in columnas if c in _CON_OFFSET]
     con = conectar()
     try:
         filas = con.execute(f"""
