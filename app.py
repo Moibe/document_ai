@@ -6,6 +6,7 @@ import archivo
 import clasificador
 import codigos
 import funciones
+import guia
 import herramientas
 from io import BytesIO
 from pathlib import Path
@@ -13,7 +14,7 @@ from typing import Optional
 from fastapi.encoders import jsonable_encoder
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import StreamingResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import StreamingResponse, JSONResponse, PlainTextResponse, HTMLResponse
 from fastapi import FastAPI, File, Request, UploadFile, HTTPException, status
 
 from dotenv import load_dotenv
@@ -80,6 +81,22 @@ async def _error_inesperado(request: Request, exc: Exception):
     )
 
 # Nuevo endpoint para Health Check
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+async def portada(request: Request):
+    """Portada: a dónde ir (la guía, Swagger). Antes la raíz devolvía 404."""
+    return HTMLResponse(guia.indice(str(request.base_url)))
+
+
+@app.get("/guia", response_class=HTMLResponse, include_in_schema=False)
+async def guia_de_la_api(request: Request):
+    """La guía de la API: API.md renderizado tal como viaja en el commit desplegado.
+    Ruta explícita y no un comodín `/{documento}`: ver el docstring de guia.py."""
+    pagina = guia.renderizar("guia", str(request.base_url))
+    if pagina is None:
+        return HTMLResponse(guia.indice(str(request.base_url)), status_code=404)
+    return HTMLResponse(pagina)
+
+
 @app.get("/health",
          tags=["Health Check"],
          description="Verifica el estado de salud de la API.",
