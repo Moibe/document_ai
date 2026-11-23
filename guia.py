@@ -21,7 +21,10 @@ import re
 from pathlib import Path
 from typing import Optional
 
-import markdown
+# `markdown` se importa dentro de `renderizar`, no aquí: app.py importa este módulo al
+# arrancar, y el deploy de webhook-central sigue de largo si falla el `pip install`.
+# Con el import arriba, un paquete faltante tumbaría TODA la API; así solo deja de
+# verse /guia.
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +133,13 @@ def renderizar(clave: str, base_url: str = "") -> Optional[str]:
     if not ruta.is_file():
         logger.warning(f"No se encontró {nombre} para publicar en /{clave}.")
         return None
+
+    try:
+        import markdown
+    except ImportError:
+        logger.error("Falta el paquete 'markdown' (está en requirements.txt): /guia no se puede renderizar.")
+        return _pagina(titulo, "<h1>Guía no disponible</h1><p>Al servidor le falta un paquete para "
+                       "mostrar esta guía. Los endpoints de la API funcionan igual.</p>", clave)
 
     texto = ruta.read_text(encoding="utf-8")
     if base_url:
