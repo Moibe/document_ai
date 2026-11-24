@@ -13,7 +13,9 @@ trae los datos: dice si se sostienen entre sí.
   `/docs`: botón **Authorize**, pegas la llave y cada «Try it out» la manda.
 
   ```bash
-  curl -X POST http://SERVIDOR_RAD/procesa_ine_ambas/        -H "X-API-Key: rad_…"        -F "frente=@anverso.jpg" -F "atras=@reverso.jpg"
+  curl -X POST http://SERVIDOR_RAD/procesa_ine_ambas/ \
+       -H "X-API-Key: rad_…" \
+       -F "frente=@anverso.jpg" -F "atras=@reverso.jpg"
   ```
 - **Llamadas desde tu backend**, no desde el navegador: RAD no envía cabeceras CORS, así que una
   página en otro origen no puede leer la respuesta.
