@@ -11,14 +11,16 @@ trae los datos: dice si se sostienen entre sí.
   todavía no tienes llave, RAD te sigue respondiendo igual. Pídela y empieza a mandarla ya: más
   adelante será obligatoria y se avisará con tiempo antes de exigirla. Para probar con tu llave en
   `/docs`: botón **Authorize**, pegas la llave y cada «Try it out» la manda.
-
-  ```bash
-  curl -X POST http://SERVIDOR_RAD/procesa_ine_ambas/ \
-       -H "X-API-Key: rad_…" \
-       -F "frente=@anverso.jpg" -F "atras=@reverso.jpg"
-  ```
 - **Llamadas desde tu backend**, no desde el navegador: RAD no envía cabeceras CORS, así que una
   página en otro origen no puede leer la respuesta.
+
+Una llamada con la llave:
+
+```bash
+curl -X POST http://SERVIDOR_RAD/procesa_ine_ambas/ \
+     -H "X-API-Key: rad_…" \
+     -F "frente=@anverso.jpg" -F "atras=@reverso.jpg"
+```
 
 Esta guía cubre la **credencial para votar (INE)**. Los demás endpoints se listan abajo, pero su
 cuerpo aún no se documenta aquí.
