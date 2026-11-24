@@ -31,10 +31,20 @@ logging.disable(logging.CRITICAL)
 
 from fastapi.testclient import TestClient
 
+import tempfile
+
+# La llave es obligatoria: los casos se corren con una llave creada para la ocasión,
+# en una base temporal, para no ensuciar el registro de uso de esta máquina. RAD_DB
+# tiene que fijarse antes de importar app (uso.py la lee al importarse).
+os.environ["RAD_DB"] = os.path.join(tempfile.mkdtemp(prefix="rad_vectores_"), "rad.db")
+
 import clasificador
 import funciones
 import ine
+import uso
 import app as app_rad
+
+LLAVE = {"X-API-Key": uso.crear_llave("vectores")["llave"]}
 
 SALIDA = os.path.join(RAIZ, "HANDOFF_INE_AMBAS_vectores.json")
 FIRMA_PNG = b"\x89PNG\r\n\x1a\n"
@@ -195,7 +205,7 @@ async def clasificar_falso(contenido, mime_type):
 funciones._llama_document_ai = dai_falso
 clasificador.clasificar = clasificar_falso
 
-cliente = TestClient(app_rad.app)
+cliente = TestClient(app_rad.app, headers=LLAVE)
 
 
 def veredicto(categoria="ine", confianza=0.9999, texto=""):
@@ -434,7 +444,7 @@ async def _explota(*args, **kwargs):
 
 funciones.procesa_ine_ambas = _explota
 try:
-    r = TestClient(app_rad.app, raise_server_exceptions=False).post("/procesa_ine_ambas/", files={
+    r = TestClient(app_rad.app, raise_server_exceptions=False, headers=LLAVE).post("/procesa_ine_ambas/", files={
         "frente": ("frente.png", PNG_OK, "image/png"), "atras": ("atras.png", PNG_ATRAS, "image/png")})
 finally:
     funciones.procesa_ine_ambas = _original

@@ -7,10 +7,10 @@ trae los datos: dice si se sostienen entre sí.
 
 - **Base URL**: `http://SERVIDOR_RAD`
 - **Swagger interactivo** (para probar desde el navegador): `/docs`
-- **Llave de acceso**: cabecera `X-API-Key: rad_…` en cada petición. **Hoy es opcional**: si
-  todavía no tienes llave, RAD te sigue respondiendo igual. Pídela y empieza a mandarla ya: más
-  adelante será obligatoria y se avisará con tiempo antes de exigirla. Para probar con tu llave en
-  `/docs`: botón **Authorize**, pegas la llave y cada «Try it out» la manda.
+- **Llave de acceso obligatoria**: cabecera `X-API-Key: rad_…` en cada petición. Sin ella, o con
+  una llave que no existe o que fue revocada, RAD responde `401 LLAVE_INVALIDA` sin procesar el
+  documento. Para probar con tu llave en `/docs`: botón **Authorize**, pegas la llave y cada
+  «Try it out» la manda.
 - **Llamadas desde tu backend**, no desde el navegador: RAD no envía cabeceras CORS, así que una
   página en otro origen no puede leer la respuesta.
 
@@ -77,6 +77,7 @@ verifica que la MRZ sea íntegra.
 
 ```bash
 curl -X POST http://SERVIDOR_RAD/procesa_ine_ambas/ \
+  -H "X-API-Key: rad_…" \
   -F "frente=@anverso.jpg;type=image/jpeg" \
   -F "atras=@reverso.jpg;type=image/jpeg"
 ```
@@ -87,6 +88,7 @@ import requests
 with open("anverso.jpg", "rb") as frente, open("reverso.jpg", "rb") as atras:
     r = requests.post(
         "http://SERVIDOR_RAD/procesa_ine_ambas/",
+        headers={"X-API-Key": "rad_…"},
         files={
             "frente": ("anverso.jpg", frente, "image/jpeg"),   # el tipo es obligatorio
             "atras": ("reverso.jpg", atras, "image/jpeg"),
@@ -107,6 +109,7 @@ datos.append("atras", new Blob([await readFile("reverso.jpg")], { type: "image/j
 
 const r = await fetch("http://SERVIDOR_RAD/procesa_ine_ambas/", {
   method: "POST",
+  headers: { "X-API-Key": "rad_…" },
   body: datos,
   signal: AbortSignal.timeout(120_000),
 });
@@ -120,15 +123,17 @@ un timeout de **120 segundos**; cada consulta interna al motor de lectura tiene 
 
 ### Qué revisa, en orden
 
-1. **La petición.** Si falta `frente` o `atras`: `422`.
-2. **Cada archivo**, primero `frente` y luego `atras`: que el tipo declarado se acepte (si no,
+1. **La llave.** Si falta, no existe o fue revocada: `401`. Se revisa antes que todo lo demás, así
+   que una llamada sin llave válida responde `401` aunque además le falten archivos.
+2. **La petición.** Si falta `frente` o `atras`: `422`.
+3. **Cada archivo**, primero `frente` y luego `atras`: que el tipo declarado se acepte (si no,
    `400`), que el archivo abra (si no, `222`) y que no traiga contraseña (si la trae, `223`).
-3. **Que cada archivo sea una INE.** Un clasificador lo revisa antes de leer: si no es una
+4. **Que cada archivo sea una INE.** Un clasificador lo revisa antes de leer: si no es una
    credencial para votar responde `220`; si viene en blanco o ilegible, `221`.
-4. **La lectura** de las dos caras.
-5. **Que cada cara esté en su campo.** Si lo que llegó en `frente` es en realidad un reverso:
+5. **La lectura** de las dos caras.
+6. **Que cada cara esté en su campo.** Si lo que llegó en `frente` es en realidad un reverso:
    `228`. Si `atras` no trae ninguna MRZ (lo común es que hayan mandado otra vez el frente): `227`.
-6. **La validación cruzada**, que decide si el documento sale `200`, `210`, `211` o `212`.
+7. **La validación cruzada**, que decide si el documento sale `200`, `210`, `211` o `212`.
 
 **Cuando hay más de un problema** gana, en este orden: un error del archivo (`400`, `222`, `223`)
 sobre uno de clasificación (`220`, `221`); entre dos del mismo tipo, el de `frente`; y `228`
@@ -140,7 +145,7 @@ sobre `227`. Por eso dos archivos **invertidos** responden `228`.
 
 ### `codigo`, `estado` y `mensaje` — qué pasó
 
-**Toda respuesta abre con estas tres llaves**, sea éxito o falla, incluidos el `422` y el `500`:
+**Toda respuesta abre con estas tres llaves**, sea éxito o falla, incluidos el `401`, el `422` y el `500`:
 
 ```json
 { "codigo": 210, "estado": "PROCESADO_CON_DISCREPANCIAS", "mensaje": "El documento se procesó, pero..." }
@@ -166,6 +171,7 @@ sobre `227`. Por eso dos archivos **invertidos** responden `228`.
 | `227` | `NO_ES_REVERSO_INE` | 200 | El archivo de `atras` no trae la MRZ: casi siempre mandaron el frente dos veces |
 | `228` | `ES_REVERSO_INE` | 200 | El archivo de `frente` es un reverso: casi siempre los archivos vienen invertidos |
 | `400` | `ARCHIVO_NO_SOPORTADO` | 400 | Tipo de archivo no aceptado o sin declarar: convertir a PDF o imagen y declarar su tipo |
+| `401` | `LLAVE_INVALIDA` | 401 | Falta la cabecera `X-API-Key`, la llave no existe o fue revocada (el `mensaje` dice cuál): corregir la llave; reintentar igual no sirve |
 | `422` | `PETICION_INVALIDA` | 422 | Corregir la llamada (falta un campo o no es `multipart/form-data`) |
 | `429` | `CUOTA_EXCEDIDA` | 429 | Se agotó la cuota por minuto del motor de lectura: esperar y reintentar |
 | `500` | `ERROR_INTERNO` | 500 | Reportar |
@@ -427,6 +433,13 @@ Todos con el mismo sobre. Salidas reales:
 ```json
 { "codigo": 400, "estado": "ARCHIVO_NO_SOPORTADO",
   "mensaje": "Archivo 'frente': Tipo de archivo no soportado: text/plain. Permitidos: application/pdf, image/jpeg, image/png, image/tiff, image/webp." }
+```
+
+Sin llave, o con una que no existe o fue revocada (solo cambia el `mensaje`):
+
+```json
+{ "codigo": 401, "estado": "LLAVE_INVALIDA",
+  "mensaje": "La llave de acceso no existe. Revisa que la cabecera X-API-Key traiga la llave completa, tal como te la entregaron." }
 ```
 
 El `422` trae además la lista de errores de validación en `errores` (su contenido es informativo):

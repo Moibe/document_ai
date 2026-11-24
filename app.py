@@ -40,33 +40,37 @@ app = FastAPI(
 
 def _openapi_con_llave():
     """El esquema de siempre más la llave `X-API-Key` en los endpoints de documentos, para
-    que Swagger muestre «Authorize» y la mande en cada «Try it out». Va declarada como
-    OPCIONAL (`{}` en `security`) porque así es hoy (fase 1); quien la valida y anota es
-    el middleware de uso.py, no FastAPI."""
+    que Swagger muestre «Authorize» y la mande en cada «Try it out». Quien la valida y
+    anota es el middleware de uso.py, no FastAPI; aquí solo se declara, como obligatoria
+    u opcional según `RAD_LLAVE_OBLIGATORIA` (opcional es `{}` en `security`)."""
     if app.openapi_schema:
         return app.openapi_schema
     esquema = get_openapi(title=app.title, version=app.version, description=app.description,
                           routes=app.routes, openapi_version=app.openapi_version)
+    obligatoria = uso.llave_obligatoria()
     esquema.setdefault("components", {}).setdefault("securitySchemes", {})["LlaveRAD"] = {
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "La llave `rad_…` que te entregaron. Hoy es opcional: si no la mandas, "
-                       "RAD responde igual, pero más adelante será obligatoria.",
+        "description": ("La llave `rad_…` que te entregaron. Obligatoria: sin ella, o con una "
+                        "llave inválida o revocada, RAD responde `401 LLAVE_INVALIDA`."
+                        if obligatoria else
+                        "La llave `rad_…` que te entregaron. En este servidor es opcional."),
     }
+    seguridad = [{"LlaveRAD": []}] if obligatoria else [{"LlaveRAD": []}, {}]
     for ruta, operaciones in esquema.get("paths", {}).items():
         if ruta.startswith(uso.PREFIJO_RUTAS_REGISTRADAS):
             for operacion in operaciones.values():
-                operacion["security"] = [{"LlaveRAD": []}, {}]
+                operacion["security"] = seguridad
     app.openapi_schema = esquema
     return esquema
 
 
 app.openapi = _openapi_con_llave
 
-# Llaves y registro de uso (uso.py). Fase 1, observación: se anota cada petición a
-# /procesa_* con la llave que traiga en X-API-Key, pero ninguna se rechaza por no
-# traerla. La administración (crear/revocar llaves, consultar uso) va en /admin.
+# Llaves y registro de uso (uso.py): cada petición a /procesa_* tiene que traer una
+# llave válida en X-API-Key (si no, 401 antes de procesar) y queda anotada. La
+# administración (crear/revocar llaves, consultar uso) va en /admin.
 uso.iniciar()
 app.add_middleware(uso.RegistroDeUso)
 app.include_router(admin.router)

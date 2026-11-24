@@ -5,12 +5,16 @@ a este archivo, o donde diga `RAD_DB`). El panel de administración (rad_view) n
 toca este archivo: llega por los endpoints de `admin.py`. Así, validar una llave no
 depende de que el panel esté arriba ni cuesta un salto de red por petición.
 
-FASE 1 — OBSERVACIÓN (lo que hay hoy). Ninguna petición se rechaza por la llave:
-la cabecera `X-API-Key` es opcional. Si viene, el registro dice de quién es (o que
-es inválida, o que está revocada); si no viene, queda como `sin_llave` junto con la
-IP y el User-Agent de quien llamó, que es lo que permite saber a quién hay que
-repartirle llave antes de exigirla. Exigirla de golpe rompería a todos los clientes
-actuales, que no mandan ninguna.
+LA LLAVE ES OBLIGATORIA. Una petición a `/procesa_*` sin cabecera `X-API-Key`, con
+una llave que no existe o con una revocada se rechaza con `401 LLAVE_INVALIDA` (el
+mismo sobre que el resto de la API) ANTES de procesar nada: no se gasta una lectura
+de Document AI en quien no tiene acceso. El rechazo también queda registrado, con
+el estado de la llave (`sin_llave`, `invalida`, `revocada`), la IP y el User-Agent.
+
+`RAD_LLAVE_OBLIGATORIA=0` en el `.env` regresa a la fase de observación (la que hubo
+al principio): se registra la llave de cada petición pero no se rechaza ninguna.
+Sirve para llevar esto a un ambiente cuyos clientes todavía no tienen llave; el
+registro dice cuáles son (`sin_llave`, con su IP) antes de encender la exigencia.
 
 DE CADA LLAVE se guarda solo el SHA-256 y un prefijo visible (`rad_Ab3dE9xQ`) para
 reconocerla en una lista. La llave completa se entrega UNA vez, al crearla.
@@ -36,6 +40,10 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
+
+from starlette.responses import JSONResponse
+
+import codigos
 
 logger = logging.getLogger(__name__)
 
@@ -169,15 +177,38 @@ def revocar_llave(llave_id: int) -> Optional[Dict[str, Any]]:
         con.close()
 
 
-def _identificar(con: sqlite3.Connection, llave: Optional[str]):
+def llave_obligatoria() -> bool:
+    """Si se rechaza la petición que no trae una llave válida. Encendido salvo que el
+    `.env` diga `RAD_LLAVE_OBLIGATORIA=0`. Se lee en cada llamada y no al importar: app.py
+    importa este módulo antes de cargar el `.env`."""
+    valor = os.getenv("RAD_LLAVE_OBLIGATORIA", "1").strip().lower()
+    return valor not in ("0", "no", "false", "off")
+
+
+def identificar(llave: Optional[str]):
     """(estado, api_key_id) de la llave que mandó el cliente."""
     if not llave:
         return LLAVE_AUSENTE, None
-    fila = con.execute("SELECT id, revocada FROM api_keys WHERE hash = ?",
-                       (_hash(llave),)).fetchone()
+    con = conectar()
+    try:
+        fila = con.execute("SELECT id, revocada FROM api_keys WHERE hash = ?",
+                           (_hash(llave),)).fetchone()
+    finally:
+        con.close()
     if fila is None:
         return LLAVE_INVALIDA, None
     return (LLAVE_REVOCADA if fila["revocada"] else LLAVE_VALIDA), fila["id"]
+
+
+# Lo que se le dice a quien no pasa, según cómo venía su llave. El `codigo` y el
+# `estado` son los mismos (401 LLAVE_INVALIDA): en los tres casos lo que toca es
+# corregir la llave; el mensaje solo dice cuál fue el problema.
+MENSAJES_RECHAZO = {
+    LLAVE_AUSENTE: "Falta la llave de acceso: mándala en la cabecera X-API-Key.",
+    LLAVE_INVALIDA: "La llave de acceso no existe. Revisa que la cabecera X-API-Key traiga "
+                    "la llave completa, tal como te la entregaron.",
+    LLAVE_REVOCADA: "La llave de acceso fue revocada. Pide una nueva a quien opera la API.",
+}
 
 
 # --- consulta del uso -------------------------------------------------------
@@ -323,10 +354,9 @@ def anotar_archivo(mime: Optional[str], veredicto: Optional[Dict[str, Any]] = No
 _SOBRE = re.compile(rb'^\s*\{\s*"codigo"\s*:\s*(\d+)\s*,\s*"estado"\s*:\s*"([A-Z_]+)"')
 
 
-def _registrar(fila: Dict[str, Any], llave: Optional[str]) -> None:
+def _registrar(fila: Dict[str, Any]) -> None:
     con = conectar()
     try:
-        fila["llave"], fila["api_key_id"] = _identificar(con, llave)
         with con:
             con.execute("""
                 INSERT INTO uso (fecha, api_key_id, llave, metodo, endpoint, status_http,
@@ -339,6 +369,12 @@ def _registrar(fila: Dict[str, Any], llave: Optional[str]) -> None:
         con.close()
 
 
+async def _responder(desenlace: "codigos.Desenlace", mensaje: Optional[str], scope, receive, send) -> None:
+    """Contesta desde el middleware con el sobre de siempre, sin llegar al endpoint."""
+    await JSONResponse(status_code=desenlace.http,
+                       content=codigos.cuerpo(desenlace, mensaje))(scope, receive, send)
+
+
 def _cabecera(scope, nombre: bytes) -> Optional[str]:
     for k, v in scope.get("headers") or []:
         if k == nombre:
@@ -347,9 +383,10 @@ def _cabecera(scope, nombre: bytes) -> Optional[str]:
 
 
 class RegistroDeUso:
-    """Middleware ASGI: deja pasar la petición tal cual y, ya enviada la respuesta,
-    anota su fila de uso. Si anotar falla, se registra en el log y la respuesta del
-    cliente no se entera."""
+    """Middleware ASGI de los endpoints de documentos: valida la llave ANTES de que la
+    petición llegue al endpoint (y la rechaza con 401 si no sirve), y ya enviada la
+    respuesta anota su fila de uso. Si anotar falla, se registra en el log y la
+    respuesta del cliente no se entera."""
 
     def __init__(self, app):
         self.app = app
@@ -364,6 +401,7 @@ class RegistroDeUso:
         anotaciones: dict = {}
         token = _anotaciones.set(anotaciones)
         respuesta = {"status": 500, "inicio_cuerpo": b""}
+        estado_llave, api_key_id = None, None
 
         async def enviar(mensaje):
             if mensaje["type"] == "http.response.start":
@@ -373,14 +411,32 @@ class RegistroDeUso:
             await send(mensaje)
 
         try:
+            try:
+                estado_llave, api_key_id = await asyncio.to_thread(
+                    identificar, _cabecera(scope, CABECERA_LLAVE.encode()))
+            except Exception:
+                # Sin poder consultar las llaves no se sabe quién llama: se cierra el paso
+                # en vez de dejar pasar a todos.
+                logger.exception("No se pudo validar la llave de %s", scope.get("path"))
+                await _responder(codigos.ERROR_INTERNO, None, scope, receive, enviar)
+                return
+
+            if estado_llave != LLAVE_VALIDA and llave_obligatoria():
+                await _responder(codigos.LLAVE_INVALIDA, MENSAJES_RECHAZO[estado_llave],
+                                 scope, receive, enviar)
+                return
+
             await self.app(scope, receive, enviar)
         finally:
             _anotaciones.reset(token)
-            try:
-                await asyncio.to_thread(_registrar, self._fila(scope, fecha, inicio, respuesta, anotaciones),
-                                        _cabecera(scope, CABECERA_LLAVE.encode()))
-            except Exception:
-                logger.exception("No se pudo registrar el uso de %s", scope.get("path"))
+            # Sin estado de la llave es que la base no respondió: tampoco hay dónde anotar.
+            if estado_llave is not None:
+                fila = self._fila(scope, fecha, inicio, respuesta, anotaciones)
+                fila["llave"], fila["api_key_id"] = estado_llave, api_key_id
+                try:
+                    await asyncio.to_thread(_registrar, fila)
+                except Exception:
+                    logger.exception("No se pudo registrar el uso de %s", scope.get("path"))
 
     @staticmethod
     def _fila(scope, fecha, inicio, respuesta, anotaciones) -> Dict[str, Any]:

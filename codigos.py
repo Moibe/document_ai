@@ -20,8 +20,8 @@ cliente que no conozca uno nuevo cae en su `default`.
 
 SOBRE LA NUMERACIÓN, que es deliberada:
 
-  - En la familia de fallas el `codigo` es IDÉNTICO al status HTTP (400, 422,
-    502, 503). Ahí no hay nada que confundir porque significan lo mismo.
+  - En la familia de fallas el `codigo` es IDÉNTICO al status HTTP (400, 401,
+    422, 502, 503). Ahí no hay nada que confundir porque significan lo mismo.
   - En la familia 2xx el HTTP siempre es 200, así que el `codigo` es el que
     distingue. Se escogieron números que HTTP NO tiene asignados (210-212,
     220-221) para que ninguno sea un falso amigo de `201 Created` o de
@@ -112,6 +112,12 @@ ARCHIVO_NO_SOPORTADO = Desenlace(
     400, "ARCHIVO_NO_SOPORTADO",
     "El tipo de archivo enviado no se acepta.", 400)
 
+# Falta la llave, no existe o está revocada. Lo responde el middleware de uso.py,
+# con un mensaje que dice cuál de las tres fue.
+LLAVE_INVALIDA = Desenlace(
+    401, "LLAVE_INVALIDA",
+    "Falta la llave de acceso o no es válida. Mándala en la cabecera X-API-Key.", 401)
+
 PETICION_INVALIDA = Desenlace(
     422, "PETICION_INVALIDA",
     "La petición no es válida. Se espera multipart/form-data con un campo de archivo.", 422)
@@ -191,6 +197,6 @@ TODOS = (
     PROCESADO, PROCESADO_CON_DISCREPANCIAS, PROCESADO_CON_AVISOS,
     PROCESADO_INCOMPLETO, NO_ES_INE, HOJA_EN_BLANCO,
     ARCHIVO_CORRUPTO, PDF_PROTEGIDO, LIMITE_PAGINAS, NO_ES_PASAPORTE, NO_ES_CEDULA_PANAMA, NO_ES_REVERSO_INE, ES_REVERSO_INE,
-    ARCHIVO_NO_SOPORTADO, PETICION_INVALIDA, CUOTA_EXCEDIDA,
+    ARCHIVO_NO_SOPORTADO, LLAVE_INVALIDA, PETICION_INVALIDA, CUOTA_EXCEDIDA,
     ERROR_INTERNO, ERROR_DOCUMENT_AI, SIN_CREDENCIALES,
 )
