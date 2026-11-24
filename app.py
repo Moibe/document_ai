@@ -14,6 +14,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Optional
 from fastapi.encoders import jsonable_encoder
+from fastapi.openapi.utils import get_openapi
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import StreamingResponse, JSONResponse, PlainTextResponse, HTMLResponse
@@ -31,8 +32,37 @@ TEMP_DIR_ROOT = Path("/home/mbriseno/code/document_ai/temp_files")
 app = FastAPI(
     title="RAD",
     description="Reconocimiento avanzado de documentos via computer vision.",
-    version="0.0.0"
+    version="0.0.0",
+    # Que la llave puesta en «Authorize» sobreviva a recargar /docs.
+    swagger_ui_parameters={"persistAuthorization": True},
 )
+
+
+def _openapi_con_llave():
+    """El esquema de siempre más la llave `X-API-Key` en los endpoints de documentos, para
+    que Swagger muestre «Authorize» y la mande en cada «Try it out». Va declarada como
+    OPCIONAL (`{}` en `security`) porque así es hoy (fase 1); quien la valida y anota es
+    el middleware de uso.py, no FastAPI."""
+    if app.openapi_schema:
+        return app.openapi_schema
+    esquema = get_openapi(title=app.title, version=app.version, description=app.description,
+                          routes=app.routes, openapi_version=app.openapi_version)
+    esquema.setdefault("components", {}).setdefault("securitySchemes", {})["LlaveRAD"] = {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "La llave `rad_…` que te entregaron. Hoy es opcional: si no la mandas, "
+                       "RAD responde igual, pero más adelante será obligatoria.",
+    }
+    for ruta, operaciones in esquema.get("paths", {}).items():
+        if ruta.startswith(uso.PREFIJO_RUTAS_REGISTRADAS):
+            for operacion in operaciones.values():
+                operacion["security"] = [{"LlaveRAD": []}, {}]
+    app.openapi_schema = esquema
+    return esquema
+
+
+app.openapi = _openapi_con_llave
 
 # Llaves y registro de uso (uso.py). Fase 1, observación: se anota cada petición a
 # /procesa_* con la llave que traiga en X-API-Key, pero ninguna se rechaza por no

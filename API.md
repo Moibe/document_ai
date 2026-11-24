@@ -9,7 +9,12 @@ trae los datos: dice si se sostienen entre sí.
 - **Swagger interactivo** (para probar desde el navegador): `/docs`
 - **Llave de acceso**: cabecera `X-API-Key: rad_…` en cada petición. **Hoy es opcional**: si
   todavía no tienes llave, RAD te sigue respondiendo igual. Pídela y empieza a mandarla ya: más
-  adelante será obligatoria y se avisará con tiempo antes de exigirla.
+  adelante será obligatoria y se avisará con tiempo antes de exigirla. Para probar con tu llave en
+  `/docs`: botón **Authorize**, pegas la llave y cada «Try it out» la manda.
+
+  ```bash
+  curl -X POST http://SERVIDOR_RAD/procesa_ine_ambas/        -H "X-API-Key: rad_…"        -F "frente=@anverso.jpg" -F "atras=@reverso.jpg"
+  ```
 - **Llamadas desde tu backend**, no desde el navegador: RAD no envía cabeceras CORS, así que una
   página en otro origen no puede leer la respuesta.
 
