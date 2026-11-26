@@ -242,8 +242,8 @@ def _desenlace_de_error(status_code: int, texto: str):
 
 
 # El processor de document_ai nombra distinto varios campos que ine.py espera con
-# los nombres del esquema de santander_ia. Se traducen aquí, a la entrada, para
-# que ine.py quede idéntico al de santander_ia y se pueda comparar tal cual.
+# los nombres del esquema de santander_ia (de donde partió). Se traducen aquí, a la
+# entrada, para no tener que renombrarlos dentro de ine.py.
 CAMPOS_PROCESSOR_INE = {
     "estado": "estado_clave",
     "municipio": "municipio_clave",

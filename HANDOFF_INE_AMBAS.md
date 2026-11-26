@@ -937,7 +937,8 @@ cliente los declare como `image/jpeg`.
 
 ## 11. Decisiones pendientes
 
-RAD está sincronizado con santander_ia (`af35409`) y cumple el estándar de errores de la sección
+La validación de RAD partió de la de santander_ia (`af35409`); desde el 2026-11-24 son proyectos
+aparte y evolucionan por separado. RAD cumple el estándar de errores de la sección
 5, así que en este endpoint ya no quedan diferencias de comportamiento con el resto. Quedan **dos
 decisiones abiertas** de Moibe. **Mientras no las tome, implementa lo escrito en las secciones
 anteriores** y no inventes una solución propia en estos dos puntos.
@@ -946,15 +947,13 @@ anteriores** y no inventes una solución propia en estos dos puntos.
    `iniciales()` la vuelve `N` al quitar acentos. Un anverso con `PEÑA`, `MUÑOZ` o `NUÑEZ` puede
    dar un `210` falso (`nombre: no concuerda con CURP ni clave de elector`). Pasa igual en
    santander_ia. Se comprobó con datos sintéticos; falta confirmarlo con una credencial real y
-   decidir si se corrige en los dos sistemas a la vez. Los vectores evitan a propósito apellidos
+   decidir si se corrige. Los vectores evitan a propósito apellidos
    con `Ñ`.
 2. **Numeración compartida.** santander_ia usa `226` y `227` para `SIN_DOMICILIO` y
    `NO_ES_ESTADO_CUENTA`; RAD usa `227` para `NO_ES_REVERSO_INE`. Si un mismo consumidor integra
    los dos sistemas, el `codigo` solo no basta: desambigua con `estado`.
 
-**Mantenerlo al día.** El `ine.py` de RAD no se edita a mano: se deriva del de santander_ia con
-`python sincronizar_ine.py --aplicar` (menos el sello, y con el plegado de acentos), y
-`python sincronizar_ine.py --verificar` avisa si alguien lo editó directamente. Después,
+**Mantenerlo al día.** El `ine.py` de RAD se edita directamente. Después de cada cambio,
 `python generar_vectores_ine_ambas.py --verificar` dice si el contrato cambió. Si implementas
 contra este documento, **revisa el diff de `HANDOFF_INE_AMBAS_vectores.json` cada vez que
 actualices el repo**: ese diff es el cambio de contrato.
