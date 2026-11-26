@@ -331,11 +331,14 @@ leer no aparecen.
 | `apellido_paterno`, `apellido_materno`, `nombres` | Del tercer renglón, sin acentos (la MRZ no los admite) |
 | `campo_truncado` | Solo si el nombre llegó al borde de los 30 caracteres: qué campo quedó cortado |
 | `digitos_control` | Cuatro booleanos: `cic`, `fecha_nacimiento`, `vigencia`, `compuesto` |
-| `integra` | `true` si los cuatro dígitos de control cuadran |
+| `integra` | `true` si los cuatro dígitos de control cuadran. **Con `false`, los demás campos de `atras.mrz` no son referencia**: se entregan tal como se leyeron, para diagnóstico, y pueden venir corridos o mal leídos |
 | `origen` | De dónde salió: `"texto"` (localizada en el texto leído) o `"entidad"` |
 
-Si la MRZ está pero no se puede reconstruir, en lugar de esos campos llegan solo el motivo y el
-texto crudo, nunca campos adivinados:
+**Usa los campos de `atras.mrz` como dato solo cuando `integra` es `true`.** Con `false` llegan
+igual, pero `validacion` ya lo reporta como `MRZ corrupta` y no los contrasta contra el anverso.
+
+Si la MRZ está pero ni siquiera se logran armar sus tres renglones, en lugar de esos campos llegan
+solo el motivo y el texto crudo:
 
 ```json
 "mrz": { "error": "MRZ incompleta: 60 caracteres de 90", "texto_crudo": "IDMEX2034519875<<0817112233445\n9107234M3212312MEX<01<<<<<<<<6" }
