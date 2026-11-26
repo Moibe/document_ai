@@ -57,6 +57,13 @@ def _sin_acentos(texto: str) -> str:
                    if unicodedata.category(c) != "Mn")
 
 
+def _sin_acentos_salvo_enie(texto: Any) -> str:
+    """En mayúsculas y sin acentos, pero la Ñ se queda: para las iniciales de la CURP
+    y la clave de elector no es una N."""
+    mayusculas = unicodedata.normalize("NFC", str(texto or "").upper())
+    return "Ñ".join(_sin_acentos(parte) for parte in mayusculas.split("Ñ"))
+
+
 def limpiar_texto(valor: Any) -> Any:
     """
     Normaliza homóglifos, colapsa los saltos de línea que el modelo arrastra
@@ -350,7 +357,7 @@ def _nombre_para_clave(nombre: str) -> str:
     Nombre de pila que usan la CURP y la clave de elector: cuando el primero es
     MARÍA o JOSÉ y hay otro, se usa el segundo ('MARIA VALENTINA' -> VALENTINA).
     """
-    partes = re.sub(r"[^A-Z ]", "", _sin_acentos((nombre or "").upper())).split()
+    partes = re.sub(r"[^A-ZÑ ]", "", _sin_acentos_salvo_enie(nombre)).split()
     if len(partes) > 1 and partes[0] in ("MARIA", "MA", "JOSE", "J"):
         return partes[1]
     return partes[0] if partes else ""
@@ -375,14 +382,18 @@ def _iniciales_clave(palabra: str, saltar_particulas: bool = False) -> str:
 
     Con `saltar_particulas`, un apellido compuesto se reduce a su primera palabra
     significativa ('DE LA CRUZ' -> 'CRUZ'), que es como lo codifica la CURP.
+
+    La Ñ se conserva tal cual ('PEÑA' -> 'PÑ'): la CURP la escribe como X y no
+    hay certeza de que la clave de elector haga lo mismo, así que quien compare
+    decide con `_concuerda`.
     """
-    texto = re.sub(r"[^A-Z ]", "", _sin_acentos((palabra or "").upper()))
+    texto = re.sub(r"[^A-ZÑ ]", "", _sin_acentos_salvo_enie(palabra))
     if saltar_particulas:
         palabras = texto.split()
         while len(palabras) > 1 and palabras[0] in PARTICULAS_APELLIDO:
             palabras.pop(0)
         texto = palabras[0] if palabras else ""
-    limpia = re.sub(r"[^A-Z]", "", texto)
+    limpia = re.sub(r"[^A-ZÑ]", "", texto)
     if not limpia:
         return ""
     interna = next((c for c in limpia[1:] if c not in VOCALES), "")
@@ -410,6 +421,19 @@ def _derivar_iniciales(paterno: Any, materno: Any, nombre: Any, saltar: bool = F
     return (_iniciales_clave(paterno, saltar)
             + _iniciales_clave(materno, saltar)
             + _iniciales_clave(_nombre_para_clave(nombre), saltar))
+
+
+def _derivaciones(paterno: Any, materno: Any, nombre: Any) -> set:
+    """Las dos derivaciones de 6 iniciales (con y sin partículas) que están completas."""
+    return {d for d in (_derivar_iniciales(paterno, materno, nombre, False),
+                        _derivar_iniciales(paterno, materno, nombre, True)) if len(d) == 6}
+
+
+def _concuerda(codigo: str, derivada: str) -> bool:
+    """¿Las iniciales impresas (CURP o clave de elector) corresponden a las derivadas
+    del nombre? Donde el nombre trae Ñ, se aceptan X (regla de la CURP) y N."""
+    return len(codigo) == len(derivada) and all(
+        c == d or (d == "Ñ" and c in "XN") for c, d in zip(codigo, derivada))
 
 
 # --------------------------------------------------------------------------
@@ -735,32 +759,40 @@ def validar(frente: Dict[str, Any], mrz: Dict[str, Any]) -> Dict[str, Any]:
     # --- contra la clave de elector ---
     if len(clave) == 18:
         esperadas_curp = _iniciales_desde_curp(curp)
-        def derivadas(saltar: bool) -> str:
-            return _derivar_iniciales(frente.get("apellido_paterno"),
-                                      frente.get("apellido_materno"),
-                                      frente.get("nombre"), saltar)
-
-        esperadas_nombre = derivadas(False)
         # Un apellido compuesto ('DE LA CRUZ') se codifica con su primera palabra
         # significativa, no con la cadena entera. Se aceptan las dos derivaciones
         # para no depender de recordar la regla exacta de cada institución: una
         # coincidencia con cualquiera basta, y para los apellidos de una palabra
-        # las dos son idénticas, así que el resto no cambia.
-        alternativas = {d for d in (esperadas_nombre, derivadas(True)) if len(d) == 6}
+        # las dos son idénticas, así que el resto no cambia. Lo mismo con la Ñ:
+        # la CURP la escribe X y se acepta también N (ver _concuerda).
+        alternativas = _derivaciones(frente.get("apellido_paterno"),
+                                     frente.get("apellido_materno"),
+                                     frente.get("nombre"))
+        # La que se muestra en los mensajes, con la regla de la CURP.
+        esperadas_nombre = _derivar_iniciales(frente.get("apellido_paterno"),
+                                              frente.get("apellido_materno"),
+                                              frente.get("nombre")).replace("Ñ", "X")
+
+        def del_nombre(codigo: str) -> bool:
+            return any(_concuerda(codigo, d) for d in alternativas)
 
         if len(esperadas_curp) == 6:
-            comparar("clave_elector vs CURP (iniciales)", clave[:6], esperadas_curp)
+            # Clave y CURP pueden diferir solo donde el nombre trae Ñ (X en una,
+            # N en la otra): las dos están bien escritas.
+            misma = clave[:6] == esperadas_curp or any(
+                _concuerda(clave[:6], d) and _concuerda(esperadas_curp, d) for d in alternativas)
+            comparar("clave_elector vs CURP (iniciales)", clave[:6],
+                     clave[:6] if misma else esperadas_curp)
             # Si clave y CURP concuerdan entre sí pero el nombre no, el dato malo
             # es el NOMBRE, no la clave: hay que decirlo, no callarlo.
-            if (clave[:6] == esperadas_curp and alternativas
-                    and esperadas_curp not in alternativas):
+            if misma and alternativas and not del_nombre(esperadas_curp):
                 discrepancias.append(
                     f"nombre: no concuerda con CURP ni clave de elector "
                     f"(ambas codifican '{esperadas_curp}', el nombre leído da '{esperadas_nombre}')"
                 )
         elif len(esperadas_nombre) == 6:
             comparar("clave_elector vs nombre (iniciales)", clave[:6],
-                     clave[:6] if clave[:6] in alternativas else esperadas_nombre)
+                     clave[:6] if del_nombre(clave[:6]) else esperadas_nombre)
         else:
             omitidas.append("clave_elector (iniciales)")
 
@@ -948,11 +980,10 @@ def reordenar_nombre_con_mrz(frente: Dict[str, Any], mrz: Dict[str, Any]) -> Opt
     if not testigos:
         return None
 
-    def derivadas(paterno, materno, nombre) -> set:
-        return {d for d in (_derivar_iniciales(paterno, materno, nombre, False),
-                            _derivar_iniciales(paterno, materno, nombre, True)) if len(d) == 6}
+    def atestiguado(paterno, materno, nombre) -> bool:
+        return any(_concuerda(t, d) for t in testigos for d in _derivaciones(paterno, materno, nombre))
 
-    if not (testigos & derivadas(*nuevos)) or (testigos & derivadas(*leidos)):
+    if not atestiguado(*nuevos) or atestiguado(*leidos):
         return None
 
     for campo, valor in zip(campos, nuevos):

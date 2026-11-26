@@ -703,26 +703,34 @@ en el diccionario.
   1. `esperadas_curp` = `curp[0] + curp[13] + curp[2] + curp[14] + curp[3] + curp[15]` si la CURP
      tiene al menos 16 caracteres; si no, cadena vacía.
   2. `derivadas(saltar)` = `iniciales(ap_f, saltar) + iniciales(am_f, saltar) + iniciales(nombre_clave(nombre), saltar)`.
-     `esperadas_nombre = derivadas(falso)`. `alternativas` = el conjunto de `derivadas(falso)` y
-     `derivadas(verdadero)` que midan 6.
-  3. Si `esperadas_curp` mide 6: `comparar("clave_elector vs CURP (iniciales)", clave[:6], esperadas_curp)`.
-     Además, si `clave[:6] == esperadas_curp` y hay `alternativas` y `esperadas_curp` **no está**
-     en ellas: `discrepancias` += `nombre: no concuerda con CURP ni clave de elector (ambas codifican '{esperadas_curp}', el nombre leído da '{esperadas_nombre}')`.
+     Pueden traer `Ñ`. `esperadas_nombre = derivadas(falso)` con cada `Ñ` cambiada por `X` (solo
+     para los mensajes). `alternativas` = el conjunto de `derivadas(falso)` y `derivadas(verdadero)`
+     que midan 6, **con su `Ñ`**.
+     `concuerda(codigo, d)`: misma longitud y, posición por posición, el mismo carácter, o `d` trae
+     `Ñ` y `codigo` trae `X` o `N`. *(La CURP escribe la `Ñ` como `X`; de la clave de elector no
+     hay certeza, por eso se acepta también `N`.)* `del_nombre(codigo)` = algún `d` de
+     `alternativas` con `concuerda(codigo, d)`.
+  3. Si `esperadas_curp` mide 6: `misma` = `clave[:6] == esperadas_curp`, o algún `d` de
+     `alternativas` con `concuerda(clave[:6], d)` y `concuerda(esperadas_curp, d)`.
+     `comparar("clave_elector vs CURP (iniciales)", clave[:6], X)` con `X = clave[:6]` si `misma`,
+     y `esperadas_curp` si no. Además, si `misma` y hay `alternativas` y **no**
+     `del_nombre(esperadas_curp)`: `discrepancias` += `nombre: no concuerda con CURP ni clave de elector (ambas codifican '{esperadas_curp}', el nombre leído da '{esperadas_nombre}')`.
      *(CURP y clave concuerdan entre sí pero el nombre no: el dato malo es el nombre.)*
   4. Si no, y `esperadas_nombre` mide 6:
      `comparar("clave_elector vs nombre (iniciales)", clave[:6], X)` con `X = clave[:6]` si
-     `clave[:6]` está en `alternativas`, y `esperadas_nombre` si no.
+     `del_nombre(clave[:6])`, y `esperadas_nombre` si no.
   5. Si no: `sin_verificar` += `clave_elector (iniciales)`.
   6. Si `clave[6:12]` es una fecha válida: `comparar("fecha_nacimiento (clave_elector)", frente.fecha_nacimiento, <fecha ISO>)`.
   7. `comparar("sexo (clave_elector)", frente.sexo, clave[14])`.
 
-**`iniciales(palabra, saltar)`**: convertir a mayúsculas sin acentos y dejar solo `A-Z` y espacio;
+**`iniciales(palabra, saltar)`**: convertir a mayúsculas sin acentos **pero conservando la `Ñ`**
+(NFC, mayúsculas, y quitar las marcas de todo lo que no sea `Ñ`) y dejar solo `A-Z`, `Ñ` y espacio;
 si `saltar`, partir en palabras, **quitar del inicio las partículas** mientras quede más de una
-palabra y quedarse con la primera; dejar solo `A-Z`. Si queda vacío, cadena vacía. Si no, la
+palabra y quedarse con la primera; dejar solo `A-Z` y `Ñ`. La `Ñ` cuenta como consonante. Si queda vacío, cadena vacía. Si no, la
 **primera letra** más la **primera consonante** de las siguientes (vacío si no hay).
 Partículas: `DA DAS DE DEL DER DI DIE DD EL LA LOS LAS LE LES MAC MC VAN VON Y`.
 
-**`nombre_clave(nombre)`**: mayúsculas sin acentos, solo `A-Z` y espacio, partir en palabras; si
+**`nombre_clave(nombre)`**: mayúsculas sin acentos conservando la `Ñ`, solo `A-Z`, `Ñ` y espacio, partir en palabras; si
 hay más de una y la primera es `MARIA`, `MA`, `JOSE` o `J`, la segunda; si no, la primera; vacío
 si no hay palabras. (`MARIA VALENTINA` da `VALENTINA`.)
 
@@ -800,8 +808,9 @@ se cumplen todas**:
   del orden de la MRZ y **no** las del orden del frente. Los *testigos* son `esperadas_curp` (8.3,
   bloque 3) y `clave[:6]` si la clave mide 18, los que midan 6. `derivadas(p, m, n)` es el conjunto
   de `iniciales(p) + iniciales(m) + iniciales(nombre_clave(n))`, con y sin saltar partículas, que
-  midan 6. La condición es que **algún testigo esté en `derivadas(<los nuevos>)`** y **ningún
-  testigo esté en `derivadas(<los leídos>)`**. Sin testigos no se hace nada: sin esa segunda fuente
+  midan 6. La condición es que **algún testigo concuerde con alguna de `derivadas(<los nuevos>)`**
+  y **ningún testigo concuerde con alguna de `derivadas(<los leídos>)`**, con `concuerda` del
+  bloque 3 (la `Ñ` acepta `X` o `N`). Sin testigos no se hace nada: sin esa segunda fuente
   no hay forma de saber cuál de los dos repartos es el bueno.
 
 Si actúa, **los tres** campos pierden su etiqueta `... (MRZ)` en `coincidencias`. Aviso:
@@ -939,16 +948,15 @@ cliente los declare como `image/jpeg`.
 
 La validación de RAD partió de la de santander_ia (`af35409`); desde el 2026-11-24 son proyectos
 aparte y evolucionan por separado. RAD cumple el estándar de errores de la sección
-5, así que en este endpoint ya no quedan diferencias de comportamiento con el resto. Quedan **dos
-decisiones abiertas** de Moibe. **Mientras no las tome, implementa lo escrito en las secciones
-anteriores** y no inventes una solución propia en estos dos puntos.
+5, así que en este endpoint ya no quedan diferencias de comportamiento con el resto. Queda **una
+decisión abierta** de Moibe. **Mientras no la tome, implementa lo escrito en las secciones
+anteriores** y no inventes una solución propia en este punto.
 
-1. **La `Ñ` en las iniciales de la clave de elector.** La CURP sustituye la `Ñ` por `X`, pero
-   `iniciales()` la vuelve `N` al quitar acentos. Un anverso con `PEÑA`, `MUÑOZ` o `NUÑEZ` puede
-   dar un `210` falso (`nombre: no concuerda con CURP ni clave de elector`). Pasa igual en
-   santander_ia. Se comprobó con datos sintéticos; falta confirmarlo con una credencial real y
-   decidir si se corrige. Los vectores evitan a propósito apellidos
-   con `Ñ`.
+1. **La `Ñ` en las iniciales (resuelto 2026-11-26).** Antes `iniciales()` volvía la `Ñ` una `N` y un
+   anverso con `PEÑA`, `MUÑOZ` o `NÚÑEZ` daba un `210` falso contra la CURP, que la escribe `X`.
+   Ahora se conserva y se compara con `concuerda` (8.3, bloque 3). Sigue sin confirmarse con una
+   credencial real si la clave de elector usa `X` o `N`; por eso se aceptan las dos. santander_ia
+   conserva el comportamiento anterior. Los vectores no traen apellidos con `Ñ`.
 2. **Numeración compartida.** santander_ia usa `226` y `227` para `SIN_DOMICILIO` y
    `NO_ES_ESTADO_CUENTA`; RAD usa `227` para `NO_ES_REVERSO_INE`. Si un mismo consumidor integra
    los dos sistemas, el `codigo` solo no basta: desambigua con `estado`.

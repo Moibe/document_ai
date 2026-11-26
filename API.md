@@ -507,10 +507,9 @@ seguro está el modelo, mide si los datos se contradicen entre sí.
 apellido se caza contra la MRZ; un carácter cambiado en el domicilio, no. Para un trámite
 irreversible, `200` debería ser condición necesaria, no suficiente.
 
-**Apellidos con Ñ (en revisión).** Un apellido con Ñ en las letras que forman las iniciales
-(`PEÑA`, `MUÑOZ`, `NÚÑEZ`) puede producir una discrepancia falsa del tipo
-`nombre: no concuerda con CURP ni clave de elector`, porque la CURP sustituye la Ñ por X. Si ves
-ese `210` con un apellido así, revísalo a mano.
+**Apellidos con Ñ.** La CURP escribe la Ñ de las iniciales como X (`PEÑA` da `PX`). La
+validación lo toma en cuenta, y en la clave de elector acepta X o N en esa posición. Si el OCR
+pierde la tilde (`PENA`), el nombre ya no coincide con la CURP y sale como discrepancia.
 
 **El escaneo manda.** La diferencia entre un documento que sale limpio y uno que sale a medias es
 casi siempre la calidad de la imagen: resolución, contraste y que la cara entre completa y derecha.
