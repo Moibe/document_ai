@@ -303,12 +303,12 @@ pueden ser `null`.
 | `domicilio` | Objeto con `calle_numero`, `colonia`, `codigo_postal`, `municipio_delegacion` y `estado` (todas opcionales). `estado` es la abreviatura impresa en el domicilio (`JAL`, `CDMX`, `D.F.`) |
 | `clave_elector`, `curp` | 18 caracteres cada una |
 | `fecha_nacimiento` | **ISO `AAAA-MM-DD`**, no como viene impresa |
-| `sexo` | `H` o `M`, como viene impreso |
-| `anio_registro` | Año y número tal como vienen impresos (`2014 01`). Los dos últimos dígitos **no son un mes** |
+| `sexo` | Como viene impreso: normalmente `H` o `M`. El modelo de credencial 2026 puede imprimir `NB`; la CURP y la clave de elector solo codifican `H` o `M`, así que en ese caso la comparación del sexo sale como discrepancia |
+| `anio_registro` | Año, un espacio y el número (`2014 01`), aunque la lectura los traiga juntos (`201401`) o con punto. Los dos últimos dígitos **no son un mes** |
 | `seccion` | Conserva los ceros a la izquierda (`0817`) |
 | `numero_emision` | Solo en el formato nuevo |
 | `estado_clave`, `municipio_clave`, `localidad_clave`, `anio_emision` | Solo en el formato anterior. Claves numéricas, no nombres |
-| `vigencia` | Año final, 4 dígitos. Si el anverso imprime un rango (`2021-2031`), el último año |
+| `vigencia` | Año final, 4 dígitos. Si el anverso imprime un rango (`2026-2036`), llega solo el último año (`2036`) |
 | `pais` | `MEXICO` |
 | `formato_credencial` | `"nuevo"`, `"anterior"` o `null` si el anverso se leyó tan mal que no se puede saber. **Siempre presente** |
 | `no_impresos` | Solo en el formato nuevo: los datos del formato anterior que **el papel no trae**, que es distinto de "no se pudo leer" |

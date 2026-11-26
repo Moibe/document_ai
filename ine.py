@@ -523,14 +523,24 @@ def codigo_postal_vs_estado(cp: Any, estado: Any) -> Optional[bool]:
     return desde <= int(cp[:2]) <= hasta
 
 
-def _sufijo_anio_registro(valor: Any) -> Optional[str]:
-    """Los dos dígitos que siguen al año en 'AÑO DE REGISTRO' ('2008 02' -> '02').
+# 'AÑO DE REGISTRO': el año y dos dígitos. El modelo no es consistente con lo que
+# hay en medio: del mismo tipo de credencial salen '2022 00', '2022.00' y '201903'
+# (sin separador, visto en la muestra del modelo 2026 que publica el INE).
+RE_ANIO_REGISTRO = re.compile(r"\s*((?:19|20)[0-9]{2})\s*[ .\-]?\s*([0-9]{2})\s*")
 
-    Acepta espacio, punto o guion como separador porque el modelo no es
-    consistente ('2022 00' y '2022.00' salen del mismo tipo de credencial).
-    """
-    m = re.fullmatch(r"\s*(?:19|20)[0-9]{2}\s*[ .\-]\s*([0-9]{2})\s*", str(valor or ""))
-    return m.group(1) if m else None
+
+def _sufijo_anio_registro(valor: Any) -> Optional[str]:
+    """Los dos dígitos que siguen al año en 'AÑO DE REGISTRO' ('2008 02' -> '02')."""
+    m = RE_ANIO_REGISTRO.fullmatch(str(valor or ""))
+    return m.group(2) if m else None
+
+
+def normalizar_anio_registro(valor: Any) -> Any:
+    """'AÑO DE REGISTRO' siempre como año, espacio y los dos dígitos ('201903' y
+    '2019.03' -> '2019 03'), que es la forma que documenta la guía. Lo que no tenga
+    esa forma se deja como vino: no se adivina."""
+    m = RE_ANIO_REGISTRO.fullmatch(str(valor)) if isinstance(valor, str) else None
+    return f"{m.group(1)} {m.group(2)}" if m else valor
 
 
 def _emision_en_mrz(mrz: Dict[str, Any]) -> Optional[str]:
@@ -1040,6 +1050,16 @@ def armar_respuesta(entidades: Dict[str, Any],
                 continue
             if isinstance(valor, str) and len(valor) > 3 and valor not in texto_ocr:
                 avisos.append(f"frente.{campo}='{valor}' no aparece literal en el texto leído")
+
+    # Formatos que documenta la guía, sin importar cómo los haya escrito el modelo.
+    # Va DESPUÉS de la revisión de arriba a propósito: esa revisión busca lo que el
+    # modelo leyó, y el valor normalizado ('2019 03' en vez de '201903') puede no
+    # aparecer tal cual en el texto aunque la lectura haya sido correcta.
+    if "vigencia" in frente:
+        # El anverso imprime un rango ('2026-2036'): lo que vale es el último año.
+        frente["vigencia"] = anio_vigencia(frente["vigencia"]) or frente["vigencia"]
+    if "anio_registro" in frente:
+        frente["anio_registro"] = normalizar_anio_registro(frente["anio_registro"])
 
     validacion = validar(frente, mrz)
 
